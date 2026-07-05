@@ -283,6 +283,34 @@ fun KeyboardLayout(
     val database = remember { AppDatabase.getDatabase(context) }
     val preferences = remember { PreferencesManager(context) }
 
+    var currentWord by remember(refreshTrigger) { mutableStateOf("") }
+    
+    val handleKeyClick: (String) -> Unit = { text ->
+        if (text == " " || text == "\n" || text == "." || text == ",") {
+            currentWord = ""
+        } else if (text.length == 1 && text[0].isLetter()) {
+            currentWord += text
+        }
+        onKeyClick(text)
+    }
+    
+    val handleBackspace: () -> Unit = {
+        if (currentWord.isNotEmpty()) {
+            currentWord = currentWord.dropLast(1)
+        }
+        onBackspace()
+    }
+    
+    val handleSpace: () -> Unit = {
+        currentWord = ""
+        onSpace()
+    }
+    
+    val handleAction: () -> Unit = {
+        currentWord = ""
+        onAction()
+    }
+
     // Read states
     var selectedTheme by remember(refreshTrigger) { mutableStateOf(preferences.selectedTheme) }
     var selectedLanguage by remember(refreshTrigger) { mutableStateOf(preferences.selectedLanguage) }
@@ -374,14 +402,16 @@ fun KeyboardLayout(
     }
 
     val allKeyRows = remember(activeKeysRows, isSymbolMode) {
-        val base = listOf(numberRow) + activeKeysRows
-        if (!isSymbolMode && base.size > 3) {
-            val list = base.toMutableList()
-            list[3] = listOf("SHIFT") + list[3]
-            list
-        } else {
-            base
+        val base = if (isSymbolMode) activeKeysRows else (listOf(numberRow) + activeKeysRows)
+        val list = base.toMutableList()
+        if (list.size > 2) {
+            val bottomLetterRowIdx = if (isSymbolMode) 2 else 3
+            val bottomRow = list[bottomLetterRowIdx].toMutableList()
+            bottomRow.add(0, if (isSymbolMode) "SYMSHIFT" else "SHIFT")
+            bottomRow.add("BACKSPACE")
+            list[bottomLetterRowIdx] = bottomRow
         }
+        list
     }
 
     CompositionLocalProvider(LocalTypingAnimation provides typingAnimation) {
@@ -473,17 +503,14 @@ fun KeyboardLayout(
                     IconButton(
                         onClick = {
                             triggerHaptic()
-                            val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
-                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
+                            activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Settings) KeyboardSubPanel.None else KeyboardSubPanel.Settings
                         },
                         modifier = Modifier.testTag("open_settings")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = colors.headerIconColor
+                            tint = if (activeSubPanel == KeyboardSubPanel.Settings) colors.accentColor else colors.headerIconColor
                         )
                     }
                 }
@@ -568,7 +595,22 @@ fun KeyboardLayout(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val suggestions = listOf("the", "and", "I")
+            val suggestions = remember(currentWord) { 
+                if (currentWord.isEmpty()) {
+                    listOf("I", "the", "and")
+                } else {
+                    val matching = COMMON_WORDS.filter { it.lowercase().startsWith(currentWord.lowercase()) }
+                        .filter { it.lowercase() != currentWord.lowercase() }
+                        .take(3)
+                    if (matching.isEmpty()) {
+                        listOf(currentWord, currentWord + "s", currentWord + "ed").take(3)
+                    } else if (matching.size == 1) {
+                        listOf(currentWord, matching[0], matching[0] + "s")
+                    } else {
+                        matching
+                    }
+                }
+            }
             suggestions.forEach { word ->
                 Text(
                     text = word,
@@ -581,7 +623,11 @@ fun KeyboardLayout(
                             indication = RippleConfigurationProvider.getRipple(),
                             onClick = { 
                                 triggerHaptic()
-                                onKeyClick("$word ") 
+                                for (i in currentWord.indices) {
+                                    handleBackspace()
+                                }
+                                handleKeyClick("$word ") 
+                                currentWord = ""
                             }
                         )
                         .padding(vertical = 8.dp),
@@ -701,7 +747,7 @@ fun KeyboardLayout(
                                             if (isDragging && swipedKeys.isNotEmpty()) {
                                                 val word = matchSwipedSequence(swipedKeys, COMMON_WORDS)
                                                 if (word != null && word.isNotEmpty()) {
-                                                    onKeyClick("$word ")
+                                                    handleKeyClick("$word ")
                                                     triggerHaptic()
                                                 }
                                             }
@@ -716,6 +762,20 @@ fun KeyboardLayout(
                                     .padding(horizontal = 4.dp, vertical = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+
+                                val backspaceInteractionSource = remember { MutableInteractionSource() }
+                                val isBackspacePressed by backspaceInteractionSource.collectIsPressedAsState()
+                                LaunchedEffect(isBackspacePressed) {
+                                    if (isBackspacePressed) {
+                                        delay(400) // Initial delay before repeat
+                                        while (isBackspacePressed) {
+                                            triggerHaptic()
+                                            handleBackspace()
+                                            delay((100L / deletingSpeed).toLong().coerceIn(20L, 1000L))
+                                        }
+                                    }
+                                }
+
                                 // Number Row + Active Keys (Letters or Symbols) Rows
                                 allKeyRows.forEach { rowKeys ->
                                     Row(
@@ -732,8 +792,42 @@ fun KeyboardLayout(
                                                     },
                                                     colors = colors,
                                                     isAccent = isShiftEnabled,
-                                                    modifier = Modifier.weight(1f).testTag("shift_key")
+                                                    modifier = Modifier.weight(1.3f).testTag("shift_key")
                                                 )
+                                            } else if (key == "SYMSHIFT") {
+                                                KeyButton(
+                                                    text = "=\\<",
+                                                    onClick = {
+                                                        triggerHaptic()
+                                                    },
+                                                    colors = colors,
+                                                    modifier = Modifier.weight(1.3f)
+                                                )
+                                            } else if (key == "BACKSPACE") {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier
+                                                        .weight(1.3f)
+                                                        .height(44.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(colors.keyBackground)
+                                                        .clickable(
+                                                            interactionSource = backspaceInteractionSource,
+                                                            indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
+                                                            onClick = {
+                                                                triggerHaptic()
+                                                                handleBackspace()
+                                                            }
+                                                        )
+                                                        .testTag("backspace_key")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.Backspace,
+                                                        contentDescription = null,
+                                                        tint = colors.keyTextColor,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
                                             } else {
                                                 val isLetter = key.length == 1 && key[0].isLetter()
                                                 val displayText = if (isLetter) {
@@ -745,7 +839,7 @@ fun KeyboardLayout(
                                                     text = displayText,
                                                     onClick = {
                                                         triggerHaptic()
-                                                        onKeyClick(displayText)
+                                                        handleKeyClick(displayText)
                                                         if (isShiftEnabled) {
                                                             isShiftEnabled = false
                                                         }
@@ -757,7 +851,6 @@ fun KeyboardLayout(
                                         }
                                     }
                                 }
-
                                 // Bottom Action Row
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -789,7 +882,18 @@ fun KeyboardLayout(
                                         )
                                     }
 
-                                    // Emoji trigger inside layout
+                                    // Comma Key
+                                    KeyButton(
+                                        text = ",",
+                                        onClick = {
+                                            triggerHaptic()
+                                            handleKeyClick(",")
+                                        },
+                                        colors = colors,
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    // Emoji trigger
                                     IconButtonKey(
                                         icon = Icons.Default.SentimentSatisfied,
                                         onClick = {
@@ -797,13 +901,13 @@ fun KeyboardLayout(
                                             activeSubPanel = KeyboardSubPanel.Emoji
                                         },
                                         colors = colors,
-                                        modifier = Modifier.weight(1.2f)
+                                        modifier = Modifier.weight(1f)
                                     )
 
                                     // Space Key
                                     Box(
                                         modifier = Modifier
-                                            .weight(4f)
+                                            .weight(4.5f) // Make space wider
                                             .height(44.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(colors.keyBackground)
@@ -812,7 +916,7 @@ fun KeyboardLayout(
                                                 indication = RippleConfigurationProvider.getRipple(),
                                                 onClick = {
                                                     triggerHaptic()
-                                                    onSpace()
+                                                    handleSpace()
                                                 }
                                             )
                                             .testTag("space_key"),
@@ -827,52 +931,23 @@ fun KeyboardLayout(
                                         )
                                     }
 
-                                    // Backspace Key
-                                    val backspaceInteractionSource = remember { MutableInteractionSource() }
-                                    val isBackspacePressed by backspaceInteractionSource.collectIsPressedAsState()
-                                    
-                                    LaunchedEffect(isBackspacePressed) {
-                                        if (isBackspacePressed) {
-                                            delay(400) // Initial delay before repeat
-                                            while (isBackspacePressed) {
-                                                triggerHaptic()
-                                                onBackspace()
-                                                delay((100L / deletingSpeed).toLong().coerceIn(20L, 1000L))
-                                            }
-                                        }
-                                    }
-
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .weight(1.2f)
-                                            .height(44.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(colors.keyBackground)
-                                            .clickable(
-                                                interactionSource = backspaceInteractionSource,
-                                                indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
-                                                onClick = {
-                                                    triggerHaptic()
-                                                    onBackspace()
-                                                }
-                                            )
-                                            .testTag("backspace_key")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
-                                            contentDescription = null,
-                                            tint = colors.keyTextColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
+                                    // Period Key
+                                    KeyButton(
+                                        text = ".",
+                                        onClick = {
+                                            triggerHaptic()
+                                            handleKeyClick(".")
+                                        },
+                                        colors = colors,
+                                        modifier = Modifier.weight(1f)
+                                    )
 
                                     // Action / Enter Key
                                     IconButtonKey(
                                         icon = Icons.Default.SubdirectoryArrowLeft,
                                         onClick = {
                                             triggerHaptic()
-                                            onAction()
+                                            handleAction()
                                         },
                                         colors = colors,
                                         isAccent = true,
@@ -882,7 +957,6 @@ fun KeyboardLayout(
                                     )
                                 }
                             }
-
                             // Render smooth glowing swipe trail
                             if (gesturePoints.isNotEmpty()) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -998,7 +1072,7 @@ fun KeyboardLayout(
                                                             .background(colors.keyBackground)
                                                             .clickable {
                                                                 triggerHaptic()
-                                                                onKeyClick(item.text)
+                                                                handleKeyClick(item.text)
                                                             }
                                                             .padding(horizontal = 8.dp, vertical = 6.dp),
                                                         verticalAlignment = Alignment.CenterVertically,
@@ -1066,6 +1140,32 @@ fun KeyboardLayout(
                     }
                 }
 
+                KeyboardSubPanel.Settings -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("Quick Settings", color = colors.keyTextColor, fontWeight = FontWeight.Bold)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("One-Handed Mode", color = colors.keyTextColor)
+                            Button(onClick = { 
+                                oneHandedMode = if (oneHandedMode == "Standard") "Right" else "Standard" 
+                                preferences.oneHandedMode = oneHandedMode
+                            }) {
+                                Text(if (oneHandedMode == "Standard") "Full" else "Docked")
+                            }
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Haptic Feedback", color = colors.keyTextColor)
+                            Switch(checked = isHapticEnabled, onCheckedChange = { 
+                                isHapticEnabled = it 
+                                preferences.isHapticEnabled = it
+                            })
+                        }
+                    }
+                }
                 KeyboardSubPanel.Emoji -> {
                     // Integrated Emoji Search panel
                     Column(
@@ -1182,7 +1282,7 @@ fun KeyboardLayout(
                                             .background(colors.keyBackground)
                                             .clickable {
                                                 triggerHaptic()
-                                                onKeyClick(item.emoji)
+                                                handleKeyClick(item.emoji)
                                             }
                                     ) {
                                         Text(item.emoji, fontSize = 22.sp)
@@ -1275,7 +1375,7 @@ fun KeyboardLayout(
                                             .background(colors.keyBackground)
                                             .clickable {
                                                 triggerHaptic()
-                                                onKeyClick(item.text)
+                                                handleKeyClick(item.text)
                                             }
                                             .padding(horizontal = 10.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
@@ -1411,5 +1511,6 @@ val LocalTypingAnimation = compositionLocalOf { true }
 enum class KeyboardSubPanel {
     None,
     Emoji,
-    Clipboard
+    Clipboard,
+    Settings
 }
