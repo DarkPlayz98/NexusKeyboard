@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -554,7 +555,7 @@ fun KeyboardLayout(
         ) {
             val suggestions = remember(currentWord) { 
                 if (currentWord.isEmpty()) {
-                    listOf("I", "the", "and")
+                    emptyList()
                 } else {
                     val matching = COMMON_WORDS.filter { it.lowercase().startsWith(currentWord.lowercase()) }
                         .filter { it.lowercase() != currentWord.lowercase() }
@@ -813,7 +814,7 @@ fun KeyboardLayout(
                                     )
 
                                     // Space Key
-                                    val spaceWeight = (maxWeight - 5.7f).coerceAtLeast(4.5f)
+                                    val spaceWeight = 5f
                                     Box(
                                         modifier = Modifier
                                             .weight(spaceWeight)
@@ -870,8 +871,8 @@ fun KeyboardLayout(
                                             .testTag("enter_key")
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Search,
-                                            contentDescription = "Search",
+                                            imageVector = Icons.AutoMirrored.Filled.Send,
+                                            contentDescription = "Send",
                                             tint = colors.headerBackground,
                                             modifier = Modifier.size(22.dp)
                                         )
@@ -885,7 +886,34 @@ fun KeyboardLayout(
                     Column(
                         modifier = Modifier.fillMaxSize().padding(8.dp)
                     ) {
-                        Text("Emoji Panel (Coming Soon)", color = colors.keyTextColor)
+                        val emojis = listOf(
+                            "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
+                            "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚",
+                            "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩",
+                            "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣",
+                            "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬",
+                            "👍", "👎", "👏", "🙌", "👐", "🤲", "🤝", "🙏", "✌️", "🤞"
+                        )
+                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                            columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(40.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
+                        ) {
+                            items(emojis.size) { index ->
+                                val emoji = emojis[index]
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clickable {
+                                            triggerHaptic()
+                                            handleKeyClick(emoji)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = emoji, fontSize = 24.sp)
+                                }
+                            }
+                        }
                     }
                 }
                 KeyboardSubPanel.Settings -> {
