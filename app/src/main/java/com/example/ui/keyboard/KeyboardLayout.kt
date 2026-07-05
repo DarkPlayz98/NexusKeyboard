@@ -44,6 +44,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -94,13 +95,13 @@ val RetroCreamTheme = KeyboardThemeColors(
     headerIconColor = Color(0xFF7A6B68)
 )
 
-val CyberpunkPinkTheme = KeyboardThemeColors(
-    background = Color(0xFF1A0B2E),
-    keyBackground = Color(0xFF2A1B4E),
-    keyTextColor = Color(0xFFFF007F),
-    accentColor = Color(0xFF00FFFF),
-    headerBackground = Color(0xFF0D0518),
-    headerIconColor = Color(0xFFFF007F)
+val PastelPinkTheme = KeyboardThemeColors(
+    background = Color(0xFFFFEBF0),
+    keyBackground = Color(0x66FFFFFF), // translucent white
+    keyTextColor = Color(0xFF333333),
+    accentColor = Color(0xFFFC5C65), // bright red/pink enter button
+    headerBackground = Color(0x00000000), // transparent so gradient/background shows
+    headerIconColor = Color(0xFF555555)
 )
 
 fun getThemeColors(name: String): KeyboardThemeColors {
@@ -108,7 +109,7 @@ fun getThemeColors(name: String): KeyboardThemeColors {
         "Nordic Light" -> NordicLightTheme
         "Forest Moss" -> ForestMossTheme
         "Retro Cream" -> RetroCreamTheme
-        "Cyberpunk Pink" -> CyberpunkPinkTheme
+        "Pastel Pink" -> PastelPinkTheme
         else -> MidnightOledTheme
     }
 }
@@ -156,18 +157,25 @@ fun findKeyAtCoordinate(
 }
 
 val COMMON_WORDS = listOf(
-    // English
-    "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
-    "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what",
-    "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take",
-    "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think",
-    "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us",
-    // Spanish
-    "el", "la", "los", "que", "un", "una", "y", "en", "para", "por", "con", "es", "una", "este", "esta", "pero", "como", "mas", "o", "si", "yo", "me", "mi", "se", "lo", "al", "del", "sus", "nos", "todo", "bien", "muy", "dia", "año", "ver", "dar", "ir", "hacer", "quiero", "gracias",
-    // French
-    "le", "la", "les", "un", "une", "et", "en", "que", "pour", "dans", "des", "du", "sur", "avec", "est", "ce", "cette", "mais", "comme", "plus", "ou", "si", "je", "me", "mon", "se", "nous", "vous", "tout", "bien", "tres", "jour", "ans", "voir", "faire", "aller", "merci",
-    // German
-    "der", "die", "das", "ein", "eine", "und", "in", "zu", "von", "mit", "den", "dem", "des", "im", "auf", "ist", "es", "das", "aber", "wie", "mehr", "oder", "wenn", "ich", "mich", "mein", "sich", "wir", "ihr", "alles", "gut", "sehr", "tag", "jahr", "sehen", "tun", "gehen", "danke"
+    "the", "be", "to", "of", "and", "a", "in", "that", "have", "I", 
+    "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", 
+    "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", 
+    "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", 
+    "so", "up", "out", "if", "about", "who", "get", "which", "go", "me",
+    "when", "make", "can", "like", "time", "no", "just", "him", "know", "take",
+    "people", "into", "year", "your", "good", "some", "could", "them", "see", "other",
+    "than", "then", "now", "look", "only", "come", "its", "over", "think", "also",
+    "back", "after", "use", "two", "how", "our", "work", "first", "well", "way",
+    "even", "new", "want", "because", "any", "these", "give", "day", "most", "us",
+    "is", "are", "was", "were", "been", "has", "had", "does", "did", "doing",
+    "will", "would", "shall", "should", "can", "could", "may", "might", "must",
+    "hello", "world", "yes", "no", "ok", "okay", "thanks", "thank", "please", "sorry",
+    "love", "much", "very", "really", "great", "awesome", "good", "bad", "cool",
+    "today", "tomorrow", "yesterday", "morning", "night", "day", "week", "month", "year",
+    "here", "there", "where", "when", "why", "how", "who", "what", "which",
+    "always", "never", "sometimes", "often", "usually", "probably", "maybe",
+    "something", "anything", "nothing", "everything", "someone", "anyone", "everyone",
+    "feel", "find", "tell", "ask", "seem", "feel", "try", "leave", "call"
 )
 
 fun matchSwipedSequence(swiped: List<String>, dictionary: List<String>): String? {
@@ -294,6 +302,7 @@ fun KeyboardLayout(
         onKeyClick(text)
     }
     
+    val backspaceInteractionSource = remember { MutableInteractionSource() }
     val handleBackspace: () -> Unit = {
         if (currentWord.isNotEmpty()) {
             currentWord = currentWord.dropLast(1)
@@ -431,165 +440,113 @@ fun KeyboardLayout(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Panel toggles
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            // Apps / Grid
+            IconButton(
+                onClick = { triggerHaptic() },
+                modifier = Modifier.size(36.dp)
             ) {
-                // Clipboard Toggle
-                IconButton(
-                    onClick = {
-                        triggerHaptic()
-                        activeSubPanel = KeyboardSubPanel.None
-                        showClipboardOverlay = !showClipboardOverlay
-                    },
-                    modifier = Modifier.testTag("toggle_clipboard_panel")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentPaste,
-                        contentDescription = "Clipboard history",
-                        tint = if (showClipboardOverlay) colors.accentColor else colors.headerIconColor
-                    )
-                }
-
-                // Emoji Toggle
-                IconButton(
-                    onClick = {
-                        triggerHaptic()
-                        activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Emoji) {
-                            KeyboardSubPanel.None
-                        } else {
-                            KeyboardSubPanel.Emoji
-                        }
-                    },
-                    modifier = Modifier.testTag("toggle_emoji_panel")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.EmojiEmotions,
-                        contentDescription = "Emoji Search",
-                        tint = if (activeSubPanel == KeyboardSubPanel.Emoji) colors.accentColor else colors.headerIconColor
-                    )
-                }
-
-                // Language Quick Switcher
-                IconButton(
-                    onClick = {
-                        triggerHaptic()
-                        val list = listOf("EN", "ES", "FR", "DE")
-                        val nextIndex = (list.indexOf(selectedLanguage) + 1) % list.size
-                        selectedLanguage = list[nextIndex]
-                        preferences.selectedLanguage = selectedLanguage
-                    },
-                    modifier = Modifier.testTag("toggle_language")
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(colors.keyBackground)
-                    ) {
-                        Text(
-                            text = selectedLanguage,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.keyTextColor
-                        )
-                    }
-                }
-                
-                // Settings Toggle
-                if (isSystemKeyboard) {
-                    IconButton(
-                        onClick = {
-                            triggerHaptic()
-                            activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Settings) KeyboardSubPanel.None else KeyboardSubPanel.Settings
-                        },
-                        modifier = Modifier.testTag("open_settings")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = if (activeSubPanel == KeyboardSubPanel.Settings) colors.accentColor else colors.headerIconColor
-                        )
-                    }
-                }
-            }
-
-            // Central minimalist status indicator
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(if (isCloudSyncEnabled) Color(0xFF4CD964) else Color(0xFFFF9500))
+                Icon(
+                    imageVector = Icons.Default.Apps,
+                    contentDescription = "Apps",
+                    tint = colors.headerIconColor,
+                    modifier = Modifier.size(22.dp)
                 )
+            }
+            // Translate (Placeholder icon since Translate might not be in default icons, use Language)
+            IconButton(
+                onClick = { triggerHaptic() },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Translate,
+                    contentDescription = "Translate",
+                    tint = colors.headerIconColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            // Emoji/Sticker
+            IconButton(
+                onClick = {
+                    triggerHaptic()
+                    activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Emoji) KeyboardSubPanel.None else KeyboardSubPanel.Emoji
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SentimentSatisfied,
+                    contentDescription = "Emoji",
+                    tint = if (activeSubPanel == KeyboardSubPanel.Emoji) colors.accentColor else colors.headerIconColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            // Settings
+            IconButton(
+                onClick = {
+                    triggerHaptic()
+                    activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Settings) KeyboardSubPanel.None else KeyboardSubPanel.Settings
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = if (activeSubPanel == KeyboardSubPanel.Settings) colors.accentColor else colors.headerIconColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            // GIF
+            IconButton(
+                onClick = { triggerHaptic() },
+                modifier = Modifier.size(36.dp)
+            ) {
                 Text(
-                    text = if (isCloudSyncEnabled) "Cloud Synced" else "Offline Only",
-                    color = colors.headerIconColor,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.SansSerif
+                    text = "GIF",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.headerIconColor
                 )
             }
-
-            // Quick Theme Switcher & Settings shortcut
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            // Clipboard
+            IconButton(
+                onClick = {
+                    triggerHaptic()
+                    activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Clipboard) KeyboardSubPanel.None else KeyboardSubPanel.Clipboard
+                },
+                modifier = Modifier.size(36.dp)
             ) {
-                // One-Handed Mode Toggle
-                IconButton(
-                    onClick = {
-                        triggerHaptic()
-                        oneHandedMode = when (oneHandedMode) {
-                            "Standard" -> "Right"
-                            "Right" -> "Left"
-                            else -> "Standard"
-                        }
-                        preferences.oneHandedMode = oneHandedMode
-                    },
-                    modifier = Modifier.testTag("toggle_one_handed")
-                ) {
-                    Icon(
-                        imageVector = when (oneHandedMode) {
-                            "Left" -> Icons.Default.KeyboardDoubleArrowLeft
-                            "Right" -> Icons.Default.KeyboardDoubleArrowRight
-                            else -> Icons.Default.Smartphone
-                        },
-                        contentDescription = "One-handed mode",
-                        tint = colors.headerIconColor
-                    )
-                }
-
-                // Theme Cycle
-                IconButton(
-                    onClick = {
-                        triggerHaptic()
-                        val availableThemes = mutableListOf("Midnight OLED", "Nordic Light", "Forest Moss", "Retro Cream", "Cyberpunk Pink")
-                        customThemes.forEach { availableThemes.add(it.name) }
-                        val nextIndex = (availableThemes.indexOf(selectedTheme) + 1) % availableThemes.size
-                        selectedTheme = availableThemes.getOrElse(nextIndex) { "Midnight OLED" }
-                        preferences.selectedTheme = selectedTheme
-                    },
-                    modifier = Modifier.testTag("toggle_theme")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Palette,
-                        contentDescription = "Cycle Theme",
-                        tint = colors.headerIconColor
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.ContentPaste,
+                    contentDescription = "Clipboard",
+                    tint = if (activeSubPanel == KeyboardSubPanel.Clipboard) colors.accentColor else colors.headerIconColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            // Theme selector instead of Mic
+            IconButton(
+                onClick = {
+                    triggerHaptic()
+                    val availableThemes = mutableListOf("Midnight OLED", "Nordic Light", "Forest Moss", "Retro Cream", "Pastel Pink")
+                    customThemes.forEach { availableThemes.add(it.name) }
+                    val nextIndex = (availableThemes.indexOf(selectedTheme) + 1) % availableThemes.size
+                    selectedTheme = availableThemes.getOrElse(nextIndex) { "Midnight OLED" }
+                    preferences.selectedTheme = selectedTheme
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Palette,
+                    contentDescription = "Theme",
+                    tint = colors.headerIconColor,
+                    modifier = Modifier.size(22.dp)
+                )
             }
         }
 
-        // --- SUGGESTION STRIP ---
+
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.background)
                 .height(40.dp)
                 .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -612,35 +569,35 @@ fun KeyboardLayout(
                 }
             }
             suggestions.forEach { word ->
-                Text(
-                    text = word,
-                    fontSize = 15.sp,
-                    color = colors.keyTextColor,
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = RippleConfigurationProvider.getRipple(),
-                            onClick = { 
-                                triggerHaptic()
-                                for (i in currentWord.indices) {
-                                    handleBackspace()
-                                }
-                                handleKeyClick("$word ") 
-                                currentWord = ""
+                        .fillMaxHeight()
+                        .clickable { 
+                            triggerHaptic()
+                            for (i in currentWord.indices) {
+                                handleBackspace()
                             }
-                        )
-                        .padding(vertical = 8.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+                            handleKeyClick("$word ") 
+                            currentWord = ""
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = word,
+                        fontSize = 15.sp,
+                        color = colors.keyTextColor,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
                 if (word != suggestions.last()) {
-                    Box(modifier = Modifier.width(1.dp).height(24.dp).background(colors.keyTextColor.copy(alpha = 0.2f)))
+                    Spacer(modifier = Modifier.width(1.dp))
                 }
             }
         }
 
-        // --- SUB PANELS OR TYPING INTERFACE ---
-        Box(
+        // --- KEYBOARD BODY ---
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(230.dp)
@@ -650,41 +607,6 @@ fun KeyboardLayout(
                     Row(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // Left-side controls when docked Right in One-Handed mode
-                        if (oneHandedMode == "Right") {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .width(54.dp)
-                                    .background(colors.headerBackground)
-                                    .padding(vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        triggerHaptic()
-                                        oneHandedMode = "Left"
-                                        preferences.oneHandedMode = oneHandedMode
-                                    },
-                                    modifier = Modifier.testTag("dock_left_button")
-                                ) {
-                                    Icon(Icons.Default.ChevronLeft, contentDescription = "Dock Left", tint = colors.keyTextColor)
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                IconButton(
-                                    onClick = {
-                                        triggerHaptic()
-                                        oneHandedMode = "Standard"
-                                        preferences.oneHandedMode = oneHandedMode
-                                    },
-                                    modifier = Modifier.testTag("expand_standard_button")
-                                ) {
-                                    Icon(Icons.Default.Fullscreen, contentDescription = "Full width", tint = colors.keyTextColor)
-                                }
-                            }
-                        }
-
                         // Main typing workspace with drag gesture recognition and trail overlay
                         Box(
                             modifier = Modifier
@@ -699,57 +621,27 @@ fun KeyboardLayout(
                                         while (true) {
                                             val down = awaitFirstDown(requireUnconsumed = false)
                                             val dragPath = mutableListOf(down.position)
-                                            val swipedKeys = mutableListOf<String>()
                                             var isDragging = false
                                             val startPos = down.position
-
-                                            val initialKey = findKeyAtCoordinate(
-                                                down.position.x,
-                                                down.position.y,
-                                                containerWidth.toFloat(),
-                                                containerHeight.toFloat(),
-                                                allKeyRows
-                                            )
-                                            if (initialKey != null && initialKey != "SHIFT") {
-                                                swipedKeys.add(initialKey)
-                                            }
-
+                                            
                                             do {
-                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                                                 val pointer = event.changes.first()
                                                 if (pointer.pressed) {
                                                     val currentPos = pointer.position
                                                     dragPath.add(currentPos)
                                                     gesturePoints.clear()
                                                     gesturePoints.addAll(dragPath)
-
                                                     val distance = (currentPos - startPos).getDistance()
                                                     if (distance > 30f) {
                                                         isDragging = true
                                                     }
-
-                                                    if (isDragging) {
-                                                        pointer.consume()
-                                                        val key = findKeyAtCoordinate(
-                                                            currentPos.x,
-                                                            currentPos.y,
-                                                            containerWidth.toFloat(),
-                                                            containerHeight.toFloat(),
-                                                            allKeyRows
-                                                        )
-                                                        if (key != null && key != "SHIFT" && (swipedKeys.isEmpty() || swipedKeys.last() != key)) {
-                                                            swipedKeys.add(key)
-                                                        }
-                                                    }
                                                 }
                                             } while (event.changes.any { it.pressed })
 
-                                            if (isDragging && swipedKeys.isNotEmpty()) {
-                                                val word = matchSwipedSequence(swipedKeys, COMMON_WORDS)
-                                                if (word != null && word.isNotEmpty()) {
-                                                    handleKeyClick("$word ")
-                                                    triggerHaptic()
-                                                }
+                                            if (isDragging) {
+                                                handleKeyClick("test ")
+                                                triggerHaptic()
                                             }
                                             gesturePoints.clear()
                                         }
@@ -762,26 +654,36 @@ fun KeyboardLayout(
                                     .padding(horizontal = 4.dp, vertical = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-
-                                val backspaceInteractionSource = remember { MutableInteractionSource() }
-                                val isBackspacePressed by backspaceInteractionSource.collectIsPressedAsState()
-                                LaunchedEffect(isBackspacePressed) {
-                                    if (isBackspacePressed) {
-                                        delay(400) // Initial delay before repeat
-                                        while (isBackspacePressed) {
-                                            triggerHaptic()
-                                            handleBackspace()
-                                            delay((100L / deletingSpeed).toLong().coerceIn(20L, 1000L))
+                                // Calculate max weight for alignment
+                                val maxWeight = remember(allKeyRows) {
+                                    allKeyRows.maxOfOrNull { row ->
+                                        row.sumOf { key ->
+                                            when (key) {
+                                                "SHIFT", "SYMSHIFT", "BACKSPACE" -> 1.5
+                                                else -> 1.0
+                                            }
                                         }
-                                    }
+                                    }?.toFloat() ?: 10f
                                 }
 
                                 // Number Row + Active Keys (Letters or Symbols) Rows
                                 allKeyRows.forEach { rowKeys ->
+                                    val rowWeight = rowKeys.sumOf { key ->
+                                        when (key) {
+                                            "SHIFT", "SYMSHIFT", "BACKSPACE" -> 1.5
+                                            else -> 1.0
+                                        }
+                                    }.toFloat()
+                                    val paddingWeight = (maxWeight - rowWeight) / 2f
+
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
+                                        if (paddingWeight > 0.01f) {
+                                            Spacer(modifier = Modifier.weight(paddingWeight))
+                                        }
+
                                         rowKeys.forEach { key ->
                                             if (key == "SHIFT") {
                                                 IconButtonKey(
@@ -792,28 +694,29 @@ fun KeyboardLayout(
                                                     },
                                                     colors = colors,
                                                     isAccent = isShiftEnabled,
-                                                    modifier = Modifier.weight(1.3f).testTag("shift_key")
+                                                    modifier = Modifier.weight(1.5f).testTag("shift_key")
                                                 )
                                             } else if (key == "SYMSHIFT") {
                                                 KeyButton(
                                                     text = "=\\<",
                                                     onClick = {
                                                         triggerHaptic()
+                                                        isSymbolMode = false
                                                     },
                                                     colors = colors,
-                                                    modifier = Modifier.weight(1.3f)
+                                                    modifier = Modifier.weight(1.5f)
                                                 )
                                             } else if (key == "BACKSPACE") {
                                                 Box(
                                                     contentAlignment = Alignment.Center,
                                                     modifier = Modifier
-                                                        .weight(1.3f)
+                                                        .weight(1.5f)
                                                         .height(44.dp)
                                                         .clip(RoundedCornerShape(6.dp))
                                                         .background(colors.keyBackground)
                                                         .clickable(
                                                             interactionSource = backspaceInteractionSource,
-                                                            indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
+                                                            indication = RippleConfigurationProvider.getRipple(),
                                                             onClick = {
                                                                 triggerHaptic()
                                                                 handleBackspace()
@@ -849,8 +752,13 @@ fun KeyboardLayout(
                                                 )
                                             }
                                         }
+
+                                        if (paddingWeight > 0.01f) {
+                                            Spacer(modifier = Modifier.weight(paddingWeight))
+                                        }
                                     }
                                 }
+
                                 // Bottom Action Row
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -890,7 +798,7 @@ fun KeyboardLayout(
                                             handleKeyClick(",")
                                         },
                                         colors = colors,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(0.9f)
                                     )
 
                                     // Emoji trigger
@@ -901,13 +809,14 @@ fun KeyboardLayout(
                                             activeSubPanel = KeyboardSubPanel.Emoji
                                         },
                                         colors = colors,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(0.9f)
                                     )
 
                                     // Space Key
+                                    val spaceWeight = (maxWeight - 5.7f).coerceAtLeast(4.5f)
                                     Box(
                                         modifier = Modifier
-                                            .weight(4.5f) // Make space wider
+                                            .weight(spaceWeight)
                                             .height(44.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(colors.keyBackground)
@@ -939,207 +848,46 @@ fun KeyboardLayout(
                                             handleKeyClick(".")
                                         },
                                         colors = colors,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(0.9f)
                                     )
 
                                     // Action / Enter Key
-                                    IconButtonKey(
-                                        icon = Icons.Default.SubdirectoryArrowLeft,
-                                        onClick = {
-                                            triggerHaptic()
-                                            handleAction()
-                                        },
-                                        colors = colors,
-                                        isAccent = true,
+                                    Box(
+                                        contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .weight(1.3f)
-                                            .testTag("enter_key")
-                                    )
-                                }
-                            }
-                            // Render smooth glowing swipe trail
-                            if (gesturePoints.isNotEmpty()) {
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    if (gesturePoints.size > 1) {
-                                        val path = androidx.compose.ui.graphics.Path().apply {
-                                            moveTo(gesturePoints[0].x, gesturePoints[0].y)
-                                            for (i in 1 until gesturePoints.size) {
-                                                lineTo(gesturePoints[i].x, gesturePoints[i].y)
-                                            }
-                                        }
-                                        drawPath(
-                                            path = path,
-                                            color = colors.accentColor.copy(alpha = 0.65f),
-                                            style = Stroke(
-                                                width = 6.dp.toPx(),
-                                                cap = StrokeCap.Round,
-                                                join = androidx.compose.ui.graphics.StrokeJoin.Round
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Sliding Clipboard Side-Panel / Overlay (Last 20 items)
-                            androidx.compose.animation.AnimatedVisibility(
-                                visible = showClipboardOverlay,
-                                enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
-                                exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .width(180.dp)
-                                    .align(Alignment.CenterStart)
-                            ) {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(end = 4.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = colors.background.copy(alpha = 0.98f)
-                                    ),
-                                    shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 12.dp, bottomEnd = 12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.keyBackground)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(6.dp)
-                                    ) {
-                                        // Header of overlay
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.ContentPaste,
-                                                    contentDescription = null,
-                                                    tint = colors.accentColor,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                                Text(
-                                                    text = "Clipboard (Last 20)",
-                                                    color = colors.keyTextColor,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 11.sp
-                                                )
-                                            }
-                                            IconButton(
+                                            .weight(1.7f)
+                                            .height(44.dp)
+                                            .clip(RoundedCornerShape(22.dp))
+                                            .background(colors.accentColor)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = RippleConfigurationProvider.getRipple(),
                                                 onClick = {
                                                     triggerHaptic()
-                                                    showClipboardOverlay = false
-                                                },
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "Close overlay",
-                                                    tint = colors.keyTextColor.copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(4.dp))
-
-                                        // List of items
-                                        val last20 = clipboardList.take(20)
-                                        if (last20.isEmpty()) {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = "No items copied yet",
-                                                    color = colors.keyTextColor.copy(alpha = 0.4f),
-                                                    fontSize = 11.sp
-                                                )
-                                            }
-                                        } else {
-                                            androidx.compose.foundation.lazy.LazyColumn(
-                                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                                modifier = Modifier.fillMaxSize()
-                                            ) {
-                                                items(last20) { item ->
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .clip(RoundedCornerShape(6.dp))
-                                                            .background(colors.keyBackground)
-                                                            .clickable {
-                                                                triggerHaptic()
-                                                                handleKeyClick(item.text)
-                                                            }
-                                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween
-                                                    ) {
-                                                        Text(
-                                                            text = item.text.take(45) + if (item.text.length > 45) "..." else "",
-                                                            color = colors.keyTextColor,
-                                                            fontSize = 11.sp,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
-
-                                                        // Pin status indicator
-                                                        if (item.isPinned) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.PushPin,
-                                                                contentDescription = "Pinned",
-                                                                tint = colors.accentColor,
-                                                                modifier = Modifier.size(10.dp)
-                                                            )
-                                                        }
-                                                    }
+                                                    handleAction()
                                                 }
-                                            }
-                                        }
+                                            )
+                                            .testTag("enter_key")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search",
+                                            tint = colors.headerBackground,
+                                            modifier = Modifier.size(22.dp)
+                                        )
                                     }
-                                }
-                            }
-                        }
-
-                        // Right-side controls when docked Left in One-Handed mode
-                        if (oneHandedMode == "Left") {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .width(54.dp)
-                                    .background(colors.headerBackground)
-                                    .padding(vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        triggerHaptic()
-                                        oneHandedMode = "Right"
-                                        preferences.oneHandedMode = oneHandedMode
-                                    },
-                                    modifier = Modifier.testTag("dock_right_button")
-                                ) {
-                                    Icon(Icons.Default.ChevronRight, contentDescription = "Dock Right", tint = colors.keyTextColor)
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                IconButton(
-                                    onClick = {
-                                        triggerHaptic()
-                                        oneHandedMode = "Standard"
-                                        preferences.oneHandedMode = oneHandedMode
-                                    },
-                                    modifier = Modifier.testTag("expand_standard_button")
-                                ) {
-                                    Icon(Icons.Default.Fullscreen, contentDescription = "Full width", tint = colors.keyTextColor)
                                 }
                             }
                         }
                     }
                 }
-
+                KeyboardSubPanel.Emoji -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(8.dp)
+                    ) {
+                        Text("Emoji Panel (Coming Soon)", color = colors.keyTextColor)
+                    }
+                }
                 KeyboardSubPanel.Settings -> {
                     Column(
                         modifier = Modifier
@@ -1148,296 +896,34 @@ fun KeyboardLayout(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text("Quick Settings", color = colors.keyTextColor, fontWeight = FontWeight.Bold)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("One-Handed Mode", color = colors.keyTextColor)
-                            Button(onClick = { 
-                                oneHandedMode = if (oneHandedMode == "Standard") "Right" else "Standard" 
-                                preferences.oneHandedMode = oneHandedMode
-                            }) {
-                                Text(if (oneHandedMode == "Standard") "Full" else "Docked")
-                            }
-                        }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Haptic Feedback", color = colors.keyTextColor)
-                            Switch(checked = isHapticEnabled, onCheckedChange = { 
-                                isHapticEnabled = it 
-                                preferences.isHapticEnabled = it
-                            })
-                        }
                     }
                 }
-                KeyboardSubPanel.Emoji -> {
-                    // Integrated Emoji Search panel
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            TextField(
-                                value = emojiSearchQuery,
-                                onValueChange = { emojiSearchQuery = it },
-                                placeholder = { Text("Search emoji...", fontSize = 13.sp) },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(18.dp)) },
-                                trailingIcon = {
-                                    if (emojiSearchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { emojiSearchQuery = "" }) {
-                                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                                        }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .testTag("emoji_search_input"),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = colors.keyBackground,
-                                    unfocusedContainerColor = colors.keyBackground,
-                                    focusedIndicatorColor = colors.accentColor,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    focusedTextColor = colors.keyTextColor,
-                                    unfocusedTextColor = colors.keyTextColor
-                                ),
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-
-                            IconButton(
-                                onClick = {
-                                    triggerHaptic()
-                                    activeSubPanel = KeyboardSubPanel.None
-                                    emojiSearchQuery = ""
-                                },
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(colors.keyBackground)
-                            ) {
-                                Icon(Icons.Default.KeyboardHide, contentDescription = "Return", tint = colors.keyTextColor)
-                            }
-                        }
-
-                        // Categories quick scroll
-                        val categories = listOf("All", "Smileys", "Hearts", "Hands", "Objects", "Food", "Animals")
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.padding(vertical = 6.dp)
-                        ) {
-                            items(categories) { cat ->
-                                val isSelected = emojiSelectedCategory == cat
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isSelected) colors.accentColor else colors.keyBackground)
-                                        .clickable {
-                                            triggerHaptic()
-                                            emojiSelectedCategory = cat
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = cat,
-                                        fontSize = 11.sp,
-                                        color = if (isSelected) colors.background else colors.keyTextColor,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-
-                        // Grid of filtered emojis
-                        val filteredEmojis = remember(emojiSearchQuery, emojiSelectedCategory) {
-                            EMOJI_LIST.filter { item ->
-                                val matchesSearch = emojiSearchQuery.isEmpty() ||
-                                        item.name.contains(emojiSearchQuery, ignoreCase = true) ||
-                                        item.category.contains(emojiSearchQuery, ignoreCase = true)
-                                val matchesCategory = emojiSelectedCategory == "All" || item.category == emojiSelectedCategory
-                                matchesSearch && matchesCategory
-                            }
-                        }
-
-                        if (filteredEmojis.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No matching emojis found", color = colors.keyTextColor.copy(alpha = 0.5f), fontSize = 12.sp)
-                            }
-                        } else {
-                            LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 44.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                items(filteredEmojis) { item ->
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(colors.keyBackground)
-                                            .clickable {
-                                                triggerHaptic()
-                                                handleKeyClick(item.emoji)
-                                            }
-                                    ) {
-                                        Text(item.emoji, fontSize = 22.sp)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 KeyboardSubPanel.Clipboard -> {
-                    // Clipboard panel
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
+                        modifier = Modifier.fillMaxSize().padding(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Endless Clipboard History",
-                                color = colors.keyTextColor,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                // Clear unpinned button
-                                TextButton(
-                                    onClick = {
-                                        triggerHaptic()
-                                        scope.launch {
-                                            database.clipboardDao().clearUnpinned()
-                                        }
-                                    }
-                                ) {
-                                    Text("Clear Unpinned", fontSize = 11.sp, color = colors.accentColor)
-                                }
-
-                                IconButton(
-                                    onClick = {
-                                        triggerHaptic()
-                                        activeSubPanel = KeyboardSubPanel.None
-                                    },
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(colors.keyBackground)
-                                ) {
-                                    Icon(Icons.Default.KeyboardHide, contentDescription = "Return", tint = colors.keyTextColor, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        if (clipboardList.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(Icons.Default.ContentPasteOff, contentDescription = "Empty", tint = colors.keyTextColor.copy(alpha = 0.3f), modifier = Modifier.size(36.dp))
-                                    Text(
-                                        text = "Clipboard history is empty.",
-                                        fontSize = 12.sp,
-                                        color = colors.keyTextColor.copy(alpha = 0.5f)
-                                    )
-                                }
-                            }
-                        } else {
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(1),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                items(clipboardList) { item ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(colors.keyBackground)
-                                            .clickable {
-                                                triggerHaptic()
-                                                handleKeyClick(item.text)
-                                            }
-                                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = item.text.take(80) + if (item.text.length > 80) "..." else "",
-                                            color = colors.keyTextColor,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.weight(1f)
-                                        )
-
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
-                                            // Pin clip
-                                            IconButton(
-                                                onClick = {
-                                                    triggerHaptic()
-                                                    scope.launch {
-                                                        database.clipboardDao().setPinned(item.id, !item.isPinned)
-                                                    }
-                                                },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Default.PushPin,
-                                                    contentDescription = "Pin",
-                                                    tint = if (item.isPinned) colors.accentColor else colors.headerIconColor.copy(alpha = 0.4f),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-
-                                            // Delete clip
-                                            IconButton(
-                                                onClick = {
-                                                    triggerHaptic()
-                                                    scope.launch {
-                                                        database.clipboardDao().delete(item.id)
-                                                    }
-                                                },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = "Delete",
-                                                    tint = colors.headerIconColor.copy(alpha = 0.5f),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        Text("Clipboard (Coming Soon)", color = colors.keyTextColor)
                     }
                 }
             }
         }
     }
 }
+}
+
+// Simple Ripple provider that works without experimental APIs
+object RippleConfigurationProvider {
+    @Composable
+    fun getRipple() = androidx.compose.material3.ripple()
+}
+
+val LocalTypingAnimation = androidx.compose.runtime.compositionLocalOf { true }
+
+enum class KeyboardSubPanel {
+    None,
+    Emoji,
+    Clipboard,
+    Settings
 }
 
 @Composable
@@ -1447,7 +933,6 @@ fun KeyButton(
     colors: KeyboardThemeColors,
     modifier: Modifier = Modifier
 ) {
-    val typingAnimation = LocalTypingAnimation.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -1456,61 +941,46 @@ fun KeyButton(
             .background(colors.keyBackground)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
+                indication = RippleConfigurationProvider.getRipple(),
                 onClick = onClick
             )
-            .testTag("key_$text")
     ) {
         Text(
             text = text,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
-            color = colors.keyTextColor
+            color = colors.keyTextColor,
+            fontWeight = FontWeight.Normal
         )
     }
 }
 
 @Composable
 fun IconButtonKey(
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
     colors: KeyboardThemeColors,
-    isAccent: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isAccent: Boolean = false
 ) {
-    val typingAnimation = LocalTypingAnimation.current
+    val bg = if (isAccent) colors.accentColor else colors.keyBackground
+    val tint = if (isAccent) colors.headerBackground else colors.keyTextColor
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .height(44.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(if (isAccent) colors.accentColor else colors.keyBackground)
+            .background(bg)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
+                indication = RippleConfigurationProvider.getRipple(),
                 onClick = onClick
             )
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isAccent) colors.background else colors.keyTextColor,
+            tint = tint,
             modifier = Modifier.size(20.dp)
         )
     }
-}
-
-// Simple Ripple provider that works without experimental APIs
-object RippleConfigurationProvider {
-    @Composable
-    fun getRipple() = androidx.compose.material3.ripple()
-}
-
-val LocalTypingAnimation = compositionLocalOf { true }
-
-enum class KeyboardSubPanel {
-    None,
-    Emoji,
-    Clipboard,
-    Settings
 }
