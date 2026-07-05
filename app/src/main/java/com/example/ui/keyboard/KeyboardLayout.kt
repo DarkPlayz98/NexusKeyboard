@@ -467,6 +467,26 @@ fun KeyboardLayout(
                         )
                     }
                 }
+                
+                // Settings Toggle
+                if (isSystemKeyboard) {
+                    IconButton(
+                        onClick = {
+                            triggerHaptic()
+                            val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.testTag("open_settings")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = colors.headerIconColor
+                        )
+                    }
+                }
             }
 
             // Central minimalist status indicator
@@ -534,6 +554,41 @@ fun KeyboardLayout(
                         contentDescription = "Cycle Theme",
                         tint = colors.headerIconColor
                     )
+                }
+            }
+        }
+
+        // --- SUGGESTION STRIP ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.background)
+                .height(40.dp)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val suggestions = listOf("the", "and", "I")
+            suggestions.forEach { word ->
+                Text(
+                    text = word,
+                    fontSize = 15.sp,
+                    color = colors.keyTextColor,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = RippleConfigurationProvider.getRipple(),
+                            onClick = { 
+                                triggerHaptic()
+                                onKeyClick("$word ") 
+                            }
+                        )
+                        .padding(vertical = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                if (word != suggestions.last()) {
+                    Box(modifier = Modifier.width(1.dp).height(24.dp).background(colors.keyTextColor.copy(alpha = 0.2f)))
                 }
             }
         }
@@ -659,7 +714,7 @@ fun KeyboardLayout(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(horizontal = 4.dp, vertical = 6.dp),
-                                verticalArrangement = Arrangement.SpaceBetween
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 // Number Row + Active Keys (Letters or Symbols) Rows
                                 allKeyRows.forEach { rowKeys ->

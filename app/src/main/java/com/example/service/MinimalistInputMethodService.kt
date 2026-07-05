@@ -37,10 +37,22 @@ class MinimalistInputMethodService : InputMethodService(), LifecycleOwner, ViewM
 
     override fun onCreateInputView(): View {
         val composeView = ComposeView(this).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            )
             setViewCompositionStrategy(
                 androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@MinimalistInputMethodService.lifecycle)
             )
         }
+        
+        val decorView = window.window?.decorView
+        if (decorView != null) {
+            decorView.setViewTreeLifecycleOwner(this)
+            decorView.setViewTreeViewModelStoreOwner(this)
+            decorView.setViewTreeSavedStateRegistryOwner(this)
+        }
+        
         composeView.setViewTreeLifecycleOwner(this)
         composeView.setViewTreeViewModelStoreOwner(this)
         composeView.setViewTreeSavedStateRegistryOwner(this)

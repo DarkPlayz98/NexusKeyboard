@@ -1,0 +1,260 @@
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Text(
+                                    text = "Preset Themes",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                val themes = listOf("Midnight OLED", "Nordic Light", "Forest Moss", "Retro Cream", "Cyberpunk Pink")
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    themes.take(3).forEach { th ->
+                                        val isSelected = selectedTheme == th
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    selectedTheme = th
+                                                    preferences.selectedTheme = th
+                                                    refreshTrigger++
+                                                }
+                                                .padding(vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = th,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    themes.drop(3).forEach { th ->
+                                        val isSelected = selectedTheme == th
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    selectedTheme = th
+                                                    preferences.selectedTheme = th
+                                                    refreshTrigger++
+                                                }
+                                                .padding(vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = th,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (customThemes.isNotEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        text = "Your Saved Custom Themes",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+
+                                    customThemes.forEach { th ->
+                                        val isSelected = selectedTheme == th.name
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
+                                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    selectedTheme = th.name
+                                                    preferences.selectedTheme = th.name
+                                                    refreshTrigger++
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                // Small color bubble previewing the background
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            try {
+                                                                Color(android.graphics.Color.parseColor(th.backgroundColorHex))
+                                                            } catch (e: Exception) {
+                                                                Color.Gray
+                                                            }
+                                                        )
+                                                )
+                                                Text(
+                                                    text = th.name,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 13.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = {
+                                                    scope.launch {
+                                                        database.customThemeDao().delete(th.name)
+                                                        if (selectedTheme == th.name) {
+                                                            selectedTheme = "Midnight OLED"
+                                                            preferences.selectedTheme = "Midnight OLED"
+                                                        }
+                                                        refreshTrigger++
+                                                    }
+                                                },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete theme",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(
+                                    text = "Create Custom Aesthetic Theme",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                OutlinedTextField(
+                                    value = newThemeName,
+                                    onValueChange = { newThemeName = it },
+                                    label = { Text("Theme Name") },
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                                    modifier = Modifier.fillMaxWidth().testTag("custom_theme_name_input")
+                                )
+
+                                val colorInputs = listOf(
+                                    "Background" to bgHex to { v: String -> bgHex = v },
+                                    "Key Background" to keyBgHex to { v: String -> keyBgHex = v },
+                                    "Key Text" to keyTextHex to { v: String -> keyTextHex = v },
+                                    "Accent Color" to accentHex to { v: String -> accentHex = v },
+                                    "Header Background" to headerBgHex to { v: String -> headerBgHex = v },
+                                    "Header Icon" to headerIconHex to { v: String -> headerIconHex = v }
+                                )
+
+                                colorInputs.forEach { pair ->
+                                    val (labelAndVal, setter) = pair
+                                    val (label, currentVal) = labelAndVal
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = currentVal,
+                                            onValueChange = { setter(it) },
+                                            label = { Text(label) },
+                                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        // Small circle previewing current color hex string
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    try {
+                                                        Color(android.graphics.Color.parseColor(if (currentVal.startsWith("#")) currentVal else "#$currentVal"))
+                                                    } catch (e: Exception) {
+                                                        Color.LightGray
+                                                    }
+                                                )
+                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (newThemeName.isNotBlank()) {
+                                            scope.launch {
+                                                database.customThemeDao().insert(
+                                                    CustomTheme(
+                                                        name = newThemeName,
+                                                        backgroundColorHex = bgHex,
+                                                        keyBackgroundColorHex = keyBgHex,
+                                                        keyTextColorHex = keyTextHex,
+                                                        accentColorHex = accentHex,
+                                                        headerBackgroundColorHex = headerBgHex,
+                                                        headerIconColorHex = headerIconHex
+                                                    )
+                                                )
+                                                selectedTheme = newThemeName
+                                                preferences.selectedTheme = newThemeName
+                                                newThemeName = ""
+                                                refreshTrigger++
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().testTag("save_theme_button"),
+                                    enabled = newThemeName.isNotBlank()
+                                ) {
+                                    Icon(Icons.Default.Save, contentDescription = "Save")
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Save Theme & Activate", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }

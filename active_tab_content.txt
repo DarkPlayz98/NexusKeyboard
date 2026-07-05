@@ -1,0 +1,667 @@
+   464	            // ACTIVE CONTENT VIEW
+   465	            when (activeTab) {
+   466	                0 -> {
+   467	                    // TAB 0: SYNC & LOCAL PERSISTENCE
+   468	                    item {
+   469	                        Card(
+   470	                            modifier = Modifier.fillMaxWidth(),
+   471	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   472	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   473	                        ) {
+   474	                            Column(modifier = Modifier.padding(14.dp)) {
+   475	                                Row(
+   476	                                    modifier = Modifier.fillMaxWidth(),
+   477	                                    verticalAlignment = Alignment.CenterVertically,
+   478	                                    horizontalArrangement = Arrangement.SpaceBetween
+   479	                                ) {
+   480	                                    Row(
+   481	                                        verticalAlignment = Alignment.CenterVertically,
+   482	                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+   483	                                    ) {
+   484	                                        Icon(
+   485	                                            imageVector = Icons.Default.CloudSync,
+   486	                                            contentDescription = "Sync",
+   487	                                            tint = MaterialTheme.colorScheme.primary,
+   488	                                            modifier = Modifier.size(20.dp)
+   489	                                        )
+   490	                                        Text(
+   491	                                            text = "Seamless Cloud Synchronization",
+   492	                                            fontWeight = FontWeight.Bold,
+   493	                                            fontSize = 13.sp,
+   494	                                            color = MaterialTheme.colorScheme.onSurface
+   495	                                        )
+   496	                                    }
+   497	
+   498	                                    Switch(
+   499	                                        checked = isCloudSyncEnabled,
+   500	                                        onCheckedChange = {
+   501	                                            isCloudSyncEnabled = it
+   502	                                            preferences.isCloudSyncEnabled = it
+   503	                                            refreshTrigger++
+   504	                                        }
+   505	                                    )
+   506	                                }
+   507	
+   508	                                Text(
+   509	                                    text = "Store all endless clipboard, customizations, and settings locally for offline accessibility. When online, secure P2P syncing runs flawlessly.",
+   510	                                    fontSize = 11.sp,
+   511	                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+   512	                                    modifier = Modifier.padding(vertical = 6.dp)
+   513	                                )
+   514	
+   515	                                Spacer(modifier = Modifier.height(8.dp))
+   516	
+   517	                                // Sync progress / status card
+   518	                                Box(
+   519	                                    modifier = Modifier
+   520	                                        .fillMaxWidth()
+   521	                                        .clip(RoundedCornerShape(8.dp))
+   522	                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+   523	                                        .padding(12.dp)
+   524	                                ) {
+   525	                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+   526	                                        Row(
+   527	                                            modifier = Modifier.fillMaxWidth(),
+   528	                                            horizontalArrangement = Arrangement.SpaceBetween
+   529	                                        ) {
+   530	                                            Text("Sync Status", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+   531	                                            Text(
+   532	                                                text = if (isSyncing) "Syncing..." else if (isCloudSyncEnabled) "Synchronized" else "Offline-Only Cache",
+   533	                                                fontSize = 11.sp,
+   534	                                                fontWeight = FontWeight.Bold,
+   535	                                                color = if (isSyncing) MaterialTheme.colorScheme.primary else if (isCloudSyncEnabled) Color(0xFF4CD964) else Color(0xFFFF9500)
+   536	                                            )
+   537	                                        }
+   538	
+   539	                                        Row(
+   540	                                            modifier = Modifier.fillMaxWidth(),
+   541	                                            horizontalArrangement = Arrangement.SpaceBetween
+   542	                                        ) {
+   543	                                            Text("Connected Devices", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+   544	                                            Text("3 active devices", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+   545	                                        }
+   546	
+   547	                                        Row(
+   548	                                            modifier = Modifier.fillMaxWidth(),
+   549	                                            horizontalArrangement = Arrangement.SpaceBetween
+   550	                                        ) {
+   551	                                            Text("Last Backup Completed", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+   552	                                            Text(lastSyncedDisplay, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+   553	                                        }
+   554	
+   555	                                        if (isSyncing) {
+   556	                                            LinearProgressIndicator(
+   557	                                                progress = { syncProgress },
+   558	                                                modifier = Modifier
+   559	                                                    .fillMaxWidth()
+   560	                                                    .padding(vertical = 6.dp)
+   561	                                                    .height(4.dp),
+   562	                                                color = MaterialTheme.colorScheme.primary,
+   563	                                                trackColor = MaterialTheme.colorScheme.outlineVariant,
+   564	                                            )
+   565	                                        }
+   566	                                    }
+   567	                                }
+   568	
+   569	                                Spacer(modifier = Modifier.height(10.dp))
+   570	
+   571	                                Button(
+   572	                                    onClick = {
+   573	                                        if (!isSyncing && isCloudSyncEnabled) {
+   574	                                            isSyncing = true
+   575	                                            syncProgress = 0f
+   576	                                            scope.launch {
+   577	                                                while (syncProgress < 1f) {
+   578	                                                    delay(100)
+   579	                                                    syncProgress += 0.1f
+   580	                                                }
+   581	                                                isSyncing = false
+   582	                                                preferences.lastSyncedTime = System.currentTimeMillis()
+   583	                                                lastSyncedDisplay = "Just Now"
+   584	                                            }
+   585	                                        }
+   586	                                    },
+   587	                                    enabled = isCloudSyncEnabled && !isSyncing,
+   588	                                    modifier = Modifier.fillMaxWidth(),
+   589	                                    shape = RoundedCornerShape(8.dp)
+   590	                                ) {
+   591	                                    Text("Force Instant Cloud Sync", fontWeight = FontWeight.Bold)
+   592	                                }
+   593	                            }
+   594	                        }
+   595	                    }
+   596	                }
+   597	
+   598	                1 -> {
+   599	                    // TAB 1: CLIPBOARD MANAGER
+   600	                    item {
+   601	                        Card(
+   602	                            modifier = Modifier.fillMaxWidth(),
+   603	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   604	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   605	                        ) {
+   606	                            Column(modifier = Modifier.padding(14.dp)) {
+   607	                                Text(
+   608	                                    text = "Add Custom Quick-Clip",
+   609	                                    fontWeight = FontWeight.Bold,
+   610	                                    fontSize = 13.sp,
+   611	                                    color = MaterialTheme.colorScheme.onSurface
+   612	                                )
+   613	
+   614	                                Spacer(modifier = Modifier.height(6.dp))
+   615	
+   616	                                Row(
+   617	                                    modifier = Modifier.fillMaxWidth(),
+   618	                                    verticalAlignment = Alignment.CenterVertically,
+   619	                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+   620	                                ) {
+   621	                                    TextField(
+   622	                                        value = newClipText,
+   623	                                        onValueChange = { newClipText = it },
+   624	                                        placeholder = { Text("Type custom address, email, phrase...", fontSize = 12.sp) },
+   625	                                        modifier = Modifier
+   626	                                            .weight(1f)
+   627	                                            .height(48.dp)
+   628	                                            .testTag("custom_clip_input"),
+   629	                                        colors = TextFieldDefaults.colors(
+   630	                                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+   631	                                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+   632	                                        ),
+   633	                                        shape = RoundedCornerShape(8.dp),
+   634	                                        singleLine = true
+   635	                                    )
+   636	
+   637	                                    Button(
+   638	                                        onClick = {
+   639	                                            if (newClipText.isNotBlank()) {
+   640	                                                scope.launch {
+   641	                                                    database.clipboardDao().insert(ClipboardItem(text = newClipText.trim()))
+   642	                                                    newClipText = ""
+   643	                                                }
+   644	                                            }
+   645	                                        },
+   646	                                        modifier = Modifier.height(48.dp)
+   647	                                    ) {
+   648	                                        Icon(Icons.Default.Add, contentDescription = "Add clip")
+   649	                                    }
+   650	                                }
+   651	                            }
+   652	                        }
+   653	                    }
+   654	
+   655	                    if (clipboardHistory.isEmpty()) {
+   656	                        item {
+   657	                            Box(
+   658	                                modifier = Modifier
+   659	                                    .fillMaxWidth()
+   660	                                    .padding(vertical = 24.dp),
+   661	                                contentAlignment = Alignment.Center
+   662	                            ) {
+   663	                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+   664	                                    Icon(Icons.Default.ContentPasteOff, contentDescription = "Empty", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), modifier = Modifier.size(40.dp))
+   665	                                    Text("No clips saved. Copy items globally or type above to see history.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+   666	                                }
+   667	                            }
+   668	                        }
+   669	                    } else {
+   670	                        items(clipboardHistory) { item ->
+   671	                            Card(
+   672	                                modifier = Modifier
+   673	                                    .fillMaxWidth()
+   674	                                    .padding(vertical = 2.dp),
+   675	                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   676	                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   677	                            ) {
+   678	                                Row(
+   679	                                    modifier = Modifier
+   680	                                        .fillMaxWidth()
+   681	                                        .padding(12.dp),
+   682	                                    verticalAlignment = Alignment.CenterVertically,
+   683	                                    horizontalArrangement = Arrangement.SpaceBetween
+   684	                                ) {
+   685	                                    Column(modifier = Modifier.weight(1f)) {
+   686	                                        Text(
+   687	                                            text = item.text,
+   688	                                            fontSize = 13.sp,
+   689	                                            color = MaterialTheme.colorScheme.onSurface
+   690	                                        )
+   691	                                        Text(
+   692	                                            text = if (item.isPinned) "Pinned Clip • Local Storage" else "Local Storage Cache",
+   693	                                            fontSize = 10.sp,
+   694	                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+   695	                                        )
+   696	                                    }
+   697	
+   698	                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+   699	                                        IconButton(
+   700	                                            onClick = {
+   701	                                                scope.launch {
+   702	                                                    database.clipboardDao().setPinned(item.id, !item.isPinned)
+   703	                                                }
+   704	                                            }
+   705	                                        ) {
+   706	                                            Icon(
+   707	                                                imageVector = Icons.Default.PushPin,
+   708	                                                contentDescription = "Pin",
+   709	                                                tint = if (item.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+   710	                                                modifier = Modifier.size(18.dp)
+   711	                                            )
+   712	                                        }
+   713	
+   714	                                        IconButton(
+   715	                                            onClick = {
+   716	                                                scope.launch {
+   717	                                                    database.clipboardDao().delete(item.id)
+   718	                                                }
+   719	                                            }
+   720	                                        ) {
+   721	                                            Icon(
+   722	                                                imageVector = Icons.Default.Delete,
+   723	                                                contentDescription = "Delete",
+   724	                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+   725	                                                modifier = Modifier.size(18.dp)
+   726	                                            )
+   727	                                        }
+   728	                                    }
+   729	                                }
+   730	                            }
+   731	                        }
+   732	                    }
+   733	                }
+   734	
+   735	                2 -> {
+   736	                    // TAB 2: PERSONALIZATION & THEMES
+   737	                    item {
+   738	                        Card(
+   739	                            modifier = Modifier.fillMaxWidth(),
+   740	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   741	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   742	                        ) {
+   743	                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+   744	                                Text(
+   745	                                    text = "One-Handed Layout Mode",
+   746	                                    fontWeight = FontWeight.Bold,
+   747	                                    fontSize = 13.sp,
+   748	                                    color = MaterialTheme.colorScheme.onSurface
+   749	                                )
+   750	
+   751	                                Row(
+   752	                                    modifier = Modifier.fillMaxWidth(),
+   753	                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+   754	                                ) {
+   755	                                    val layouts = listOf("Standard", "Left", "Right")
+   756	                                    layouts.forEach { lay ->
+   757	                                        val isSelected = oneHandedMode == lay
+   758	                                        Box(
+   759	                                            contentAlignment = Alignment.Center,
+   760	                                            modifier = Modifier
+   761	                                                .weight(1f)
+   762	                                                .clip(RoundedCornerShape(8.dp))
+   763	                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+   764	                                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+   765	                                                .clickable {
+   766	                                                    oneHandedMode = lay
+   767	                                                    preferences.oneHandedMode = lay
+   768	                                                    refreshTrigger++
+   769	                                                }
+   770	                                                .padding(vertical = 10.dp)
+   771	                                        ) {
+   772	                                            Text(
+   773	                                                text = if (lay == "Standard") "Full Width" else "$lay Dock",
+   774	                                                fontSize = 11.sp,
+   775	                                                fontWeight = FontWeight.Bold,
+   776	                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+   777	                                                textAlign = TextAlign.Center
+   778	                                            )
+   779	                                        }
+   780	                                    }
+   781	                                }
+   782	                            }
+   783	                        }
+   784	                    }
+   785	
+   786	                    item {
+   787	                        Card(
+   788	                            modifier = Modifier.fillMaxWidth(),
+   789	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   790	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   791	                        ) {
+   792	                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+   793	                                Text(
+   794	                                    text = "Typing Animation",
+   795	                                    fontWeight = FontWeight.Bold,
+   796	                                    fontSize = 13.sp,
+   797	                                    color = MaterialTheme.colorScheme.onSurface
+   798	                                )
+   799	                                Row(
+   800	                                    modifier = Modifier.fillMaxWidth(),
+   801	                                    verticalAlignment = Alignment.CenterVertically,
+   802	                                    horizontalArrangement = Arrangement.SpaceBetween
+   803	                                ) {
+   804	                                    Text(
+   805	                                        text = "Enable key press animations",
+   806	                                        fontSize = 12.sp,
+   807	                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+   808	                                    )
+   809	                                    Switch(
+   810	                                        checked = typingAnimation,
+   811	                                        onCheckedChange = {
+   812	                                            typingAnimation = it
+   813	                                            preferences.typingAnimation = it
+   814	                                            refreshTrigger++
+   815	                                        }
+   816	                                    )
+   817	                                }
+   818	                            }
+   819	                        }
+   820	                    }
+   821	
+   822	                    item {
+   823	                        Card(
+   824	                            modifier = Modifier.fillMaxWidth(),
+   825	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   826	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   827	                        ) {
+   828	                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+   829	                                Text(
+   830	                                    text = "Deleting Speed",
+   831	                                    fontWeight = FontWeight.Bold,
+   832	                                    fontSize = 13.sp,
+   833	                                    color = MaterialTheme.colorScheme.onSurface
+   834	                                )
+   835	                                Column {
+   836	                                    Slider(
+   837	                                        value = deletingSpeed,
+   838	                                        onValueChange = {
+   839	                                            deletingSpeed = it
+   840	                                            preferences.deletingSpeed = it
+   841	                                            refreshTrigger++
+   842	                                        },
+   843	                                        valueRange = 0.1f..3f
+   844	                                    )
+   845	                                    Row(
+   846	                                        modifier = Modifier.fillMaxWidth(),
+   847	                                        horizontalArrangement = Arrangement.SpaceBetween
+   848	                                    ) {
+   849	                                        Text("Slow", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+   850	                                        Text("Fast", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+   851	                                    }
+   852	                                }
+   853	                            }
+   854	                        }
+   855	                    }
+   856	
+   857	                    item {
+   858	                        Card(
+   859	                            modifier = Modifier.fillMaxWidth(),
+   860	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   861	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   862	                        ) {
+   863	                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+   864	                                Text(
+   865	                                    text = "Preset Themes",
+   866	                                    fontWeight = FontWeight.Bold,
+   867	                                    fontSize = 13.sp,
+   868	                                    color = MaterialTheme.colorScheme.onSurface
+   869	                                )
+   870	
+   871	                                val themes = listOf("Midnight OLED", "Nordic Light", "Forest Moss", "Retro Cream", "Cyberpunk Pink")
+   872	                                Row(
+   873	                                    modifier = Modifier.fillMaxWidth(),
+   874	                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+   875	                                ) {
+   876	                                    themes.take(3).forEach { th ->
+   877	                                        val isSelected = selectedTheme == th
+   878	                                        Box(
+   879	                                            contentAlignment = Alignment.Center,
+   880	                                            modifier = Modifier
+   881	                                                .weight(1f)
+   882	                                                .clip(RoundedCornerShape(8.dp))
+   883	                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+   884	                                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+   885	                                                .clickable {
+   886	                                                    selectedTheme = th
+   887	                                                    preferences.selectedTheme = th
+   888	                                                    refreshTrigger++
+   889	                                                }
+   890	                                                .padding(vertical = 8.dp)
+   891	                                        ) {
+   892	                                            Text(
+   893	                                                text = th,
+   894	                                                fontSize = 11.sp,
+   895	                                                fontWeight = FontWeight.Bold,
+   896	                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+   897	                                                textAlign = TextAlign.Center
+   898	                                            )
+   899	                                        }
+   900	                                    }
+   901	                                }
+   902	
+   903	                                Row(
+   904	                                    modifier = Modifier.fillMaxWidth(),
+   905	                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+   906	                                ) {
+   907	                                    themes.drop(3).forEach { th ->
+   908	                                        val isSelected = selectedTheme == th
+   909	                                        Box(
+   910	                                            contentAlignment = Alignment.Center,
+   911	                                            modifier = Modifier
+   912	                                                .weight(1f)
+   913	                                                .clip(RoundedCornerShape(8.dp))
+   914	                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+   915	                                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+   916	                                                .clickable {
+   917	                                                    selectedTheme = th
+   918	                                                    preferences.selectedTheme = th
+   919	                                                    refreshTrigger++
+   920	                                                }
+   921	                                                .padding(vertical = 8.dp)
+   922	                                        ) {
+   923	                                            Text(
+   924	                                                text = th,
+   925	                                                fontSize = 11.sp,
+   926	                                                fontWeight = FontWeight.Bold,
+   927	                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+   928	                                                textAlign = TextAlign.Center
+   929	                                            )
+   930	                                        }
+   931	                                    }
+   932	                                }
+   933	                            }
+   934	                        }
+   935	                    }
+   936	
+   937	                    if (customThemes.isNotEmpty()) {
+   938	                        item {
+   939	                            Card(
+   940	                                modifier = Modifier.fillMaxWidth(),
+   941	                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+   942	                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+   943	                            ) {
+   944	                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+   945	                                    Text(
+   946	                                        text = "Your Saved Custom Themes",
+   947	                                        fontWeight = FontWeight.Bold,
+   948	                                        fontSize = 13.sp,
+   949	                                        color = MaterialTheme.colorScheme.onSurface
+   950	                                    )
+   951	
+   952	                                    customThemes.forEach { th ->
+   953	                                        val isSelected = selectedTheme == th.name
+   954	                                        Row(
+   955	                                            modifier = Modifier
+   956	                                                .fillMaxWidth()
+   957	                                                .clip(RoundedCornerShape(8.dp))
+   958	                                                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
+   959	                                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+   960	                                                .clickable {
+   961	                                                    selectedTheme = th.name
+   962	                                                    preferences.selectedTheme = th.name
+   963	                                                    refreshTrigger++
+   964	                                                }
+   965	                                                .padding(horizontal = 12.dp, vertical = 6.dp),
+   966	                                            verticalAlignment = Alignment.CenterVertically,
+   967	                                            horizontalArrangement = Arrangement.SpaceBetween
+   968	                                        ) {
+   969	                                            Row(
+   970	                                                verticalAlignment = Alignment.CenterVertically,
+   971	                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+   972	                                            ) {
+   973	                                                // Small color bubble previewing the background
+   974	                                                Box(
+   975	                                                    modifier = Modifier
+   976	                                                        .size(16.dp)
+   977	                                                        .clip(CircleShape)
+   978	                                                        .background(
+   979	                                                            try {
+   980	                                                                Color(android.graphics.Color.parseColor(th.backgroundColorHex))
+   981	                                                            } catch (e: Exception) {
+   982	                                                                Color.Gray
+   983	                                                            }
+   984	                                                        )
+   985	                                                )
+   986	                                                Text(
+   987	                                                    text = th.name,
+   988	                                                    fontWeight = FontWeight.SemiBold,
+   989	                                                    fontSize = 13.sp,
+   990	                                                    color = MaterialTheme.colorScheme.onSurface
+   991	                                                )
+   992	                                            }
+   993	
+   994	                                            IconButton(
+   995	                                                onClick = {
+   996	                                                    scope.launch {
+   997	                                                        database.customThemeDao().delete(th.name)
+   998	                                                        if (selectedTheme == th.name) {
+   999	                                                            selectedTheme = "Midnight OLED"
+  1000	                                                            preferences.selectedTheme = "Midnight OLED"
+  1001	                                                        }
+  1002	                                                        refreshTrigger++
+  1003	                                                    }
+  1004	                                                },
+  1005	                                                modifier = Modifier.size(24.dp)
+  1006	                                            ) {
+  1007	                                                Icon(
+  1008	                                                    imageVector = Icons.Default.Delete,
+  1009	                                                    contentDescription = "Delete theme",
+  1010	                                                    tint = MaterialTheme.colorScheme.error,
+  1011	                                                    modifier = Modifier.size(16.dp)
+  1012	                                                )
+  1013	                                            }
+  1014	                                        }
+  1015	                                    }
+  1016	                                }
+  1017	                            }
+  1018	                        }
+  1019	                    }
+  1020	
+  1021	                    item {
+  1022	                        Card(
+  1023	                            modifier = Modifier.fillMaxWidth(),
+  1024	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+  1025	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+  1026	                        ) {
+  1027	                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  1028	                                Text(
+  1029	                                    text = "Create Custom Aesthetic Theme",
+  1030	                                    fontWeight = FontWeight.Bold,
+  1031	                                    fontSize = 13.sp,
+  1032	                                    color = MaterialTheme.colorScheme.onSurface
+  1033	                                )
+  1034	
+  1035	                                OutlinedTextField(
+  1036	                                    value = newThemeName,
+  1037	                                    onValueChange = { newThemeName = it },
+  1038	                                    label = { Text("Theme Name") },
+  1039	                                    textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+  1040	                                    modifier = Modifier.fillMaxWidth().testTag("custom_theme_name_input")
+  1041	                                )
+  1042	
+  1043	                                val colorInputs = listOf(
+  1044	                                    "Background" to bgHex to { v: String -> bgHex = v },
+  1045	                                    "Key Background" to keyBgHex to { v: String -> keyBgHex = v },
+  1046	                                    "Key Text" to keyTextHex to { v: String -> keyTextHex = v },
+  1047	                                    "Accent Color" to accentHex to { v: String -> accentHex = v },
+  1048	                                    "Header Background" to headerBgHex to { v: String -> headerBgHex = v },
+  1049	                                    "Header Icon" to headerIconHex to { v: String -> headerIconHex = v }
+  1050	                                )
+  1051	
+  1052	                                colorInputs.forEach { pair ->
+  1053	                                    val (labelAndVal, setter) = pair
+  1054	                                    val (label, currentVal) = labelAndVal
+  1055	                                    Row(
+  1056	                                        modifier = Modifier.fillMaxWidth(),
+  1057	                                        verticalAlignment = Alignment.CenterVertically,
+  1058	                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+  1059	                                    ) {
+  1060	                                        OutlinedTextField(
+  1061	                                            value = currentVal,
+  1062	                                            onValueChange = { setter(it) },
+  1063	                                            label = { Text(label) },
+  1064	                                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+  1065	                                            modifier = Modifier.weight(1f)
+  1066	                                        )
+  1067	
+  1068	                                        // Small circle previewing current color hex string
+  1069	                                        Box(
+  1070	                                            modifier = Modifier
+  1071	                                                .size(32.dp)
+  1072	                                                .clip(CircleShape)
+  1073	                                                .background(
+  1074	                                                    try {
+  1075	                                                        Color(android.graphics.Color.parseColor(if (currentVal.startsWith("#")) currentVal else "#$currentVal"))
+  1076	                                                    } catch (e: Exception) {
+  1077	                                                        Color.LightGray
+  1078	                                                    }
+  1079	                                                )
+  1080	                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+  1081	                                        )
+  1082	                                    }
+  1083	                                }
+  1084	
+  1085	                                Button(
+  1086	                                    onClick = {
+  1087	                                        if (newThemeName.isNotBlank()) {
+  1088	                                            scope.launch {
+  1089	                                                database.customThemeDao().insert(
+  1090	                                                    CustomTheme(
+  1091	                                                        name = newThemeName,
+  1092	                                                        backgroundColorHex = bgHex,
+  1093	                                                        keyBackgroundColorHex = keyBgHex,
+  1094	                                                        keyTextColorHex = keyTextHex,
+  1095	                                                        accentColorHex = accentHex,
+  1096	                                                        headerBackgroundColorHex = headerBgHex,
+  1097	                                                        headerIconColorHex = headerIconHex
+  1098	                                                    )
+  1099	                                                )
+  1100	                                                selectedTheme = newThemeName
+  1101	                                                preferences.selectedTheme = newThemeName
+  1102	                                                newThemeName = ""
+  1103	                                                refreshTrigger++
+  1104	                                            }
+  1105	                                        }
+  1106	                                    },
+  1107	                                    modifier = Modifier.fillMaxWidth().testTag("save_theme_button"),
+  1108	                                    enabled = newThemeName.isNotBlank()
+  1109	                                ) {
+  1110	                                    Icon(Icons.Default.Save, contentDescription = "Save")
+  1111	                                    Spacer(modifier = Modifier.width(6.dp))
+  1112	                                    Text("Save Theme & Activate", fontSize = 12.sp)
+  1113	                                }
+  1114	                            }
+  1115	                        }
+  1116	                    }
+  1117	
+  1118	                    item {
+  1119	                        Card(
+  1120	                            modifier = Modifier.fillMaxWidth(),
+  1121	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+  1122	                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+  1123	                        ) {
+  1124	                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+  1125	                                // HAPTIC CONTROLS
+  1126	                                Row(
+  1127	                                    modifier = Modifier.fillMaxWidth(),
+  1128	                                    verticalAlignment = Alignment.CenterVertically,
+  1129	                                    horizontalArrangement = Arrangement.SpaceBetween
+  1130	                                ) {

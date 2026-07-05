@@ -1,0 +1,134 @@
+                0 -> {
+                    // TAB 0: SYNC & LOCAL PERSISTENCE
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CloudSync,
+                                            contentDescription = "Sync",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = "Seamless Cloud Synchronization",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    Switch(
+                                        checked = isCloudSyncEnabled,
+                                        onCheckedChange = {
+                                            isCloudSyncEnabled = it
+                                            preferences.isCloudSyncEnabled = it
+                                            refreshTrigger++
+                                        }
+                                    )
+                                }
+
+                                Text(
+                                    text = "Store all endless clipboard, customizations, and settings locally for offline accessibility. When online, secure P2P syncing runs flawlessly.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 6.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Sync progress / status card
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        .padding(12.dp)
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Sync Status", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                text = if (isSyncing) "Syncing..." else if (isCloudSyncEnabled) "Synchronized" else "Offline-Only Cache",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSyncing) MaterialTheme.colorScheme.primary else if (isCloudSyncEnabled) Color(0xFF4CD964) else Color(0xFFFF9500)
+                                            )
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Connected Devices", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("3 active devices", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Last Backup Completed", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(lastSyncedDisplay, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+
+                                        if (isSyncing) {
+                                            LinearProgressIndicator(
+                                                progress = { syncProgress },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 6.dp)
+                                                    .height(4.dp),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = MaterialTheme.colorScheme.outlineVariant,
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (!isSyncing && isCloudSyncEnabled) {
+                                            isSyncing = true
+                                            syncProgress = 0f
+                                            scope.launch {
+                                                while (syncProgress < 1f) {
+                                                    delay(100)
+                                                    syncProgress += 0.1f
+                                                }
+                                                isSyncing = false
+                                                preferences.lastSyncedTime = System.currentTimeMillis()
+                                                lastSyncedDisplay = "Just Now"
+                                            }
+                                        }
+                                    },
+                                    enabled = isCloudSyncEnabled && !isSyncing,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Force Instant Cloud Sync", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                1 -> {
+                    // TAB 1: CLIPBOARD MANAGER
