@@ -4,6 +4,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.inputmethodservice.InputMethodService
 import android.view.View
+import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.*
@@ -47,10 +48,24 @@ class MinimalistInputMethodService : InputMethodService(), LifecycleOwner, ViewM
                     currentInputConnection?.commitText(text, 1)
                 },
                 onBackspace = {
-                    currentInputConnection?.deleteSurroundingText(1, 0)
+                    sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
                 },
                 onAction = {
-                    currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_DONE)
+                    val conn = currentInputConnection
+                    if (conn != null) {
+                        val editorInfo = currentInputEditorInfo
+                        val actionId = editorInfo?.actionId ?: 0
+                        if (actionId != 0) {
+                            conn.performEditorAction(actionId)
+                        } else {
+                            val actionCode = editorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION) ?: 0
+                            if (actionCode != EditorInfo.IME_ACTION_NONE && actionCode != EditorInfo.IME_ACTION_UNSPECIFIED) {
+                                conn.performEditorAction(actionCode)
+                            } else {
+                                sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                            }
+                        }
+                    }
                 },
                 onSpace = {
                     currentInputConnection?.commitText(" ", 1)

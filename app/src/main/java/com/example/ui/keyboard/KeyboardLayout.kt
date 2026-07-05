@@ -296,6 +296,7 @@ fun KeyboardLayout(
     var activeSubPanel by remember { mutableStateOf<KeyboardSubPanel>(KeyboardSubPanel.None) }
     var showClipboardOverlay by remember { mutableStateOf(false) }
     var isSymbolMode by remember { mutableStateOf(false) }
+    var isShiftEnabled by remember { mutableStateOf(false) }
     var emojiSearchQuery by remember { mutableStateOf("") }
     var emojiSelectedCategory by remember { mutableStateOf("All") }
 
@@ -368,8 +369,15 @@ fun KeyboardLayout(
         if (isSymbolMode) symbolRows else rows
     }
 
-    val allKeyRows = remember(activeKeysRows) {
-        listOf(numberRow) + activeKeysRows
+    val allKeyRows = remember(activeKeysRows, isSymbolMode) {
+        val base = listOf(numberRow) + activeKeysRows
+        if (!isSymbolMode && base.size > 3) {
+            val list = base.toMutableList()
+            list[3] = listOf("SHIFT") + list[3]
+            list
+        } else {
+            base
+        }
     }
 
     Column(
@@ -596,7 +604,7 @@ fun KeyboardLayout(
                                                 containerHeight.toFloat(),
                                                 allKeyRows
                                             )
-                                            if (initialKey != null) {
+                                            if (initialKey != null && initialKey != "SHIFT") {
                                                 swipedKeys.add(initialKey)
                                             }
 
@@ -623,7 +631,7 @@ fun KeyboardLayout(
                                                             containerHeight.toFloat(),
                                                             allKeyRows
                                                         )
-                                                        if (key != null && (swipedKeys.isEmpty() || swipedKeys.last() != key)) {
+                                                        if (key != null && key != "SHIFT" && (swipedKeys.isEmpty() || swipedKeys.last() != key)) {
                                                             swipedKeys.add(key)
                                                         }
                                                     }
@@ -655,15 +663,37 @@ fun KeyboardLayout(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         rowKeys.forEach { key ->
-                                            KeyButton(
-                                                text = key,
-                                                onClick = {
-                                                    triggerHaptic()
-                                                    onKeyClick(if (key.length == 1 && key[0].isLetter()) key.lowercase() else key)
-                                                },
-                                                colors = colors,
-                                                modifier = Modifier.weight(1f)
-                                            )
+                                            if (key == "SHIFT") {
+                                                IconButtonKey(
+                                                    icon = if (isShiftEnabled) Icons.Default.KeyboardCapslock else Icons.Default.ArrowUpward,
+                                                    onClick = {
+                                                        triggerHaptic()
+                                                        isShiftEnabled = !isShiftEnabled
+                                                    },
+                                                    colors = colors,
+                                                    isAccent = isShiftEnabled,
+                                                    modifier = Modifier.weight(1f).testTag("shift_key")
+                                                )
+                                            } else {
+                                                val isLetter = key.length == 1 && key[0].isLetter()
+                                                val displayText = if (isLetter) {
+                                                    if (isShiftEnabled) key.uppercase() else key.lowercase()
+                                                } else {
+                                                    key
+                                                }
+                                                KeyButton(
+                                                    text = displayText,
+                                                    onClick = {
+                                                        triggerHaptic()
+                                                        onKeyClick(displayText)
+                                                        if (isShiftEnabled) {
+                                                            isShiftEnabled = false
+                                                        }
+                                                    },
+                                                    colors = colors,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
                                         }
                                     }
                                 }
