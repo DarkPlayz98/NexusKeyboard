@@ -1,0 +1,6 @@
+{
+  "name": "Minimalist Keyboard",
+  "description": "A neat, minimalist keyboard with customizable themes, haptic feedback, endless clipboard history, and multilingual layouts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
