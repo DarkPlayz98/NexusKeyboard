@@ -443,25 +443,31 @@ fun KeyboardLayout(
         ) {
             // Apps / Grid
             IconButton(
-                onClick = { triggerHaptic() },
+                onClick = {
+                    triggerHaptic()
+                    activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Apps) KeyboardSubPanel.None else KeyboardSubPanel.Apps
+                },
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Apps,
                     contentDescription = "Apps",
-                    tint = colors.headerIconColor,
+                    tint = if (activeSubPanel == KeyboardSubPanel.Apps) colors.accentColor else colors.headerIconColor,
                     modifier = Modifier.size(22.dp)
                 )
             }
             // Translate (Placeholder icon since Translate might not be in default icons, use Language)
             IconButton(
-                onClick = { triggerHaptic() },
+                onClick = {
+                    triggerHaptic()
+                    activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Translate) KeyboardSubPanel.None else KeyboardSubPanel.Translate
+                },
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Translate,
                     contentDescription = "Translate",
-                    tint = colors.headerIconColor,
+                    tint = if (activeSubPanel == KeyboardSubPanel.Translate) colors.accentColor else colors.headerIconColor,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -497,14 +503,17 @@ fun KeyboardLayout(
             }
             // GIF
             IconButton(
-                onClick = { triggerHaptic() },
+                onClick = {
+                    triggerHaptic()
+                    activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Gif) KeyboardSubPanel.None else KeyboardSubPanel.Gif
+                },
                 modifier = Modifier.size(36.dp)
             ) {
                 Text(
                     text = "GIF",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = colors.headerIconColor
+                    color = if (activeSubPanel == KeyboardSubPanel.Gif) colors.accentColor else colors.headerIconColor
                 )
             }
             // Clipboard
@@ -678,7 +687,7 @@ fun KeyboardLayout(
                                     val paddingWeight = (maxWeight - rowWeight) / 2f
 
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         if (paddingWeight > 0.01f) {
@@ -712,7 +721,7 @@ fun KeyboardLayout(
                                                     contentAlignment = Alignment.Center,
                                                     modifier = Modifier
                                                         .weight(1.5f)
-                                                        .height(44.dp)
+                                                        .fillMaxHeight()
                                                         .clip(RoundedCornerShape(6.dp))
                                                         .background(colors.keyBackground)
                                                         .clickable(
@@ -762,15 +771,15 @@ fun KeyboardLayout(
 
                                 // Bottom Action Row
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     // Symbol/ABC switcher
                                     Box(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .weight(1.3f)
-                                            .height(44.dp)
+                                            .weight(1.5f)
+                                            .fillMaxHeight()
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(colors.keyBackground)
                                             .clickable(
@@ -799,7 +808,7 @@ fun KeyboardLayout(
                                             handleKeyClick(",")
                                         },
                                         colors = colors,
-                                        modifier = Modifier.weight(0.9f)
+                                        modifier = Modifier.weight(1.0f)
                                     )
 
                                     // Emoji trigger
@@ -810,15 +819,15 @@ fun KeyboardLayout(
                                             activeSubPanel = KeyboardSubPanel.Emoji
                                         },
                                         colors = colors,
-                                        modifier = Modifier.weight(0.9f)
+                                        modifier = Modifier.weight(1.0f)
                                     )
 
                                     // Space Key
-                                    val spaceWeight = 5f
+                                    val spaceWeight = 4.0f
                                     Box(
                                         modifier = Modifier
                                             .weight(spaceWeight)
-                                            .height(44.dp)
+                                            .fillMaxHeight()
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(colors.keyBackground)
                                             .clickable(
@@ -849,15 +858,15 @@ fun KeyboardLayout(
                                             handleKeyClick(".")
                                         },
                                         colors = colors,
-                                        modifier = Modifier.weight(0.9f)
+                                        modifier = Modifier.weight(1.0f)
                                     )
 
                                     // Action / Enter Key
                                     Box(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .weight(1.7f)
-                                            .height(44.dp)
+                                            .weight(1.5f)
+                                            .fillMaxHeight()
                                             .clip(RoundedCornerShape(22.dp))
                                             .background(colors.accentColor)
                                             .clickable(
@@ -933,6 +942,30 @@ fun KeyboardLayout(
                         Text("Clipboard (Coming Soon)", color = colors.keyTextColor)
                     }
                 }
+                KeyboardSubPanel.Apps -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("Apps Panel", color = colors.keyTextColor, fontWeight = FontWeight.Bold)
+                    }
+                }
+                KeyboardSubPanel.Translate -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("Translate Panel", color = colors.keyTextColor, fontWeight = FontWeight.Bold)
+                    }
+                }
+                KeyboardSubPanel.Gif -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("GIFs", color = colors.keyTextColor, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -951,7 +984,10 @@ enum class KeyboardSubPanel {
     None,
     Emoji,
     Clipboard,
-    Settings
+    Settings,
+    Apps,
+    Translate,
+    Gif
 }
 
 @Composable
@@ -964,7 +1000,7 @@ fun KeyButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .height(44.dp)
+            .fillMaxHeight()
             .clip(RoundedCornerShape(6.dp))
             .background(colors.keyBackground)
             .clickable(
@@ -995,7 +1031,7 @@ fun IconButtonKey(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .height(44.dp)
+            .fillMaxHeight()
             .clip(RoundedCornerShape(6.dp))
             .background(bg)
             .clickable(
