@@ -14,7 +14,17 @@ class PreferencesManager(context: Context) {
         const val KEY_CLOUD_SYNC = "cloud_sync_enabled"
         const val KEY_LAST_SYNCED = "last_synced_time"
         const val KEY_ONE_HANDED = "one_handed_mode"
+        const val KEY_DELETING_SPEED = "deleting_speed"
+        const val KEY_TYPING_ANIMATION = "typing_animation"
     }
+
+    var deletingSpeed: Float
+        get() = prefs.getFloat(KEY_DELETING_SPEED, 1f)
+        set(value) = prefs.edit().putFloat(KEY_DELETING_SPEED, value).apply()
+
+    var typingAnimation: Boolean
+        get() = prefs.getBoolean(KEY_TYPING_ANIMATION, true)
+        set(value) = prefs.edit().putBoolean(KEY_TYPING_ANIMATION, value).apply()
 
     var oneHandedMode: String
         get() = prefs.getString(KEY_ONE_HANDED, "Standard") ?: "Standard"

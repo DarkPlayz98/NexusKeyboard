@@ -7,6 +7,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -37,6 +38,7 @@ import com.example.data.ClipboardItem
 import com.example.data.PreferencesManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -287,6 +289,8 @@ fun KeyboardLayout(
     var isHapticEnabled by remember(refreshTrigger) { mutableStateOf(preferences.isHapticEnabled) }
     var isCloudSyncEnabled by remember(refreshTrigger) { mutableStateOf(preferences.isCloudSyncEnabled) }
     var oneHandedMode by remember(refreshTrigger) { mutableStateOf(preferences.oneHandedMode) }
+    var deletingSpeed by remember(refreshTrigger) { mutableStateOf(preferences.deletingSpeed) }
+    var typingAnimation by remember(refreshTrigger) { mutableStateOf(preferences.typingAnimation) }
 
     val gesturePoints = remember { mutableStateListOf<Offset>() }
     var containerWidth by remember { mutableStateOf(0) }
@@ -380,14 +384,15 @@ fun KeyboardLayout(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.background)
-            .navigationBarsPadding()
-            .testTag("keyboard_container")
-    ) {
-        // --- KEYBOARD HEADER TOOLBAR ---
+    CompositionLocalProvider(LocalTypingAnimation provides typingAnimation) {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(colors.background)
+                .navigationBarsPadding()
+                .testTag("keyboard_container")
+        ) {
+            // --- KEYBOARD HEADER TOOLBAR ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -768,17 +773,44 @@ fun KeyboardLayout(
                                     }
 
                                     // Backspace Key
-                                    IconButtonKey(
-                                        icon = Icons.AutoMirrored.Filled.Backspace,
-                                        onClick = {
-                                            triggerHaptic()
-                                            onBackspace()
-                                        },
-                                        colors = colors,
+                                    val backspaceInteractionSource = remember { MutableInteractionSource() }
+                                    val isBackspacePressed by backspaceInteractionSource.collectIsPressedAsState()
+                                    
+                                    LaunchedEffect(isBackspacePressed) {
+                                        if (isBackspacePressed) {
+                                            delay(400) // Initial delay before repeat
+                                            while (isBackspacePressed) {
+                                                triggerHaptic()
+                                                onBackspace()
+                                                delay((100L / deletingSpeed).toLong().coerceIn(20L, 1000L))
+                                            }
+                                        }
+                                    }
+
+                                    Box(
+                                        contentAlignment = Alignment.Center,
                                         modifier = Modifier
                                             .weight(1.2f)
+                                            .height(44.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(colors.keyBackground)
+                                            .clickable(
+                                                interactionSource = backspaceInteractionSource,
+                                                indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
+                                                onClick = {
+                                                    triggerHaptic()
+                                                    onBackspace()
+                                                }
+                                            )
                                             .testTag("backspace_key")
-                                    )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
+                                            contentDescription = null,
+                                            tint = colors.keyTextColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
 
                                     // Action / Enter Key
                                     IconButtonKey(
@@ -1251,6 +1283,7 @@ fun KeyboardLayout(
         }
     }
 }
+}
 
 @Composable
 fun KeyButton(
@@ -1259,6 +1292,7 @@ fun KeyButton(
     colors: KeyboardThemeColors,
     modifier: Modifier = Modifier
 ) {
+    val typingAnimation = LocalTypingAnimation.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -1267,7 +1301,7 @@ fun KeyButton(
             .background(colors.keyBackground)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = RippleConfigurationProvider.getRipple(),
+                indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
                 onClick = onClick
             )
             .testTag("key_$text")
@@ -1289,6 +1323,7 @@ fun IconButtonKey(
     isAccent: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val typingAnimation = LocalTypingAnimation.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -1297,7 +1332,7 @@ fun IconButtonKey(
             .background(if (isAccent) colors.accentColor else colors.keyBackground)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = RippleConfigurationProvider.getRipple(),
+                indication = if (typingAnimation) RippleConfigurationProvider.getRipple() else null,
                 onClick = onClick
             )
     ) {
@@ -1315,6 +1350,8 @@ object RippleConfigurationProvider {
     @Composable
     fun getRipple() = androidx.compose.material3.ripple()
 }
+
+val LocalTypingAnimation = compositionLocalOf { true }
 
 enum class KeyboardSubPanel {
     None,

@@ -36,7 +36,11 @@ class MinimalistInputMethodService : InputMethodService(), LifecycleOwner, ViewM
     }
 
     override fun onCreateInputView(): View {
-        val composeView = ComposeView(this)
+        val composeView = ComposeView(this).apply {
+            setViewCompositionStrategy(
+                androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@MinimalistInputMethodService.lifecycle)
+            )
+        }
         composeView.setViewTreeLifecycleOwner(this)
         composeView.setViewTreeViewModelStoreOwner(this)
         composeView.setViewTreeSavedStateRegistryOwner(this)
@@ -78,6 +82,7 @@ class MinimalistInputMethodService : InputMethodService(), LifecycleOwner, ViewM
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 
         // Capture primary clip if available to build endless history automatically!
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -97,6 +102,7 @@ class MinimalistInputMethodService : InputMethodService(), LifecycleOwner, ViewM
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
     }
 

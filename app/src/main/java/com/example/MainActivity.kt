@@ -82,6 +82,8 @@ fun KeyboardDashboardScreen(modifier: Modifier = Modifier) {
     var selectedLanguage by remember(refreshTrigger) { mutableStateOf(preferences.selectedLanguage) }
     var isCloudSyncEnabled by remember(refreshTrigger) { mutableStateOf(preferences.isCloudSyncEnabled) }
     var oneHandedMode by remember(refreshTrigger) { mutableStateOf(preferences.oneHandedMode) }
+    var deletingSpeed by remember(refreshTrigger) { mutableStateOf(preferences.deletingSpeed) }
+    var typingAnimation by remember(refreshTrigger) { mutableStateOf(preferences.typingAnimation) }
 
     // Custom Theme Builder states
     var newThemeName by remember { mutableStateOf("") }
@@ -454,7 +456,7 @@ fun KeyboardDashboardScreen(modifier: Modifier = Modifier) {
                     Tab(
                         selected = activeTab == 2,
                         onClick = { activeTab = 2 },
-                        text = { Text("Personalization", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        text = { Text("Settings", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                     )
                 }
             }
@@ -775,6 +777,77 @@ fun KeyboardDashboardScreen(modifier: Modifier = Modifier) {
                                                 textAlign = TextAlign.Center
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Text(
+                                    text = "Typing Animation",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Enable key press animations",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Switch(
+                                        checked = typingAnimation,
+                                        onCheckedChange = {
+                                            typingAnimation = it
+                                            preferences.typingAnimation = it
+                                            refreshTrigger++
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Text(
+                                    text = "Deleting Speed",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Column {
+                                    Slider(
+                                        value = deletingSpeed,
+                                        onValueChange = {
+                                            deletingSpeed = it
+                                            preferences.deletingSpeed = it
+                                            refreshTrigger++
+                                        },
+                                        valueRange = 0.1f..3f
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Slow", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("Fast", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
