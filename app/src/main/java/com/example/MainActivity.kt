@@ -1047,15 +1047,18 @@ fun KeyboardDashboardScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        // --- FIXED BOTTOM LIVE PREVIEW WORKSPACE ---
-        KeyboardLayout(
-            onKeyClick = { insertTextAtCursor(it) },
-            onBackspace = { deleteTextAtCursor() },
-            onAction = { insertTextAtCursor("\n") },
-            onSpace = { insertTextAtCursor(" ") },
-            refreshTrigger = refreshTrigger,
-            modifier = Modifier.border(t = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-        )
+        // --- SETUP GUIDE ---
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("How to Enable", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("1. Go to System Settings -> System -> Keyboard -> On-screen keyboard", fontSize = 14.sp)
+                Text("2. Enable this keyboard", fontSize = 14.sp)
+                Text("3. Switch to it using the keyboard icon in the navigation bar when typing", fontSize = 14.sp)
+            }
+        }
     }
 }
 

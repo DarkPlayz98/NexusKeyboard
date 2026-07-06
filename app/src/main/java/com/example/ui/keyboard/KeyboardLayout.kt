@@ -286,6 +286,19 @@ fun KeyboardLayout(
     // Used for instant UI updates when values are modified from MainActivity
     refreshTrigger: Int = 0
 ) {
+    var localRefreshTrigger by remember { mutableStateOf(refreshTrigger) }
+    
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                localRefreshTrigger++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val context = LocalContext.current
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -322,13 +335,13 @@ fun KeyboardLayout(
     }
 
     // Read states
-    var selectedTheme by remember(refreshTrigger) { mutableStateOf(preferences.selectedTheme) }
+    var selectedTheme by remember(localRefreshTrigger) { mutableStateOf(preferences.selectedTheme) }
     var selectedLanguage by remember(refreshTrigger) { mutableStateOf(preferences.selectedLanguage) }
-    var isHapticEnabled by remember(refreshTrigger) { mutableStateOf(preferences.isHapticEnabled) }
+    var isHapticEnabled by remember(localRefreshTrigger) { mutableStateOf(preferences.isHapticEnabled) }
     var isCloudSyncEnabled by remember(refreshTrigger) { mutableStateOf(preferences.isCloudSyncEnabled) }
     var oneHandedMode by remember(refreshTrigger) { mutableStateOf(preferences.oneHandedMode) }
     var deletingSpeed by remember(refreshTrigger) { mutableStateOf(preferences.deletingSpeed) }
-    var typingAnimation by remember(refreshTrigger) { mutableStateOf(preferences.typingAnimation) }
+    var typingAnimation by remember(localRefreshTrigger) { mutableStateOf(preferences.typingAnimation) }
 
     val gesturePoints = remember { mutableStateListOf<Offset>() }
     var containerWidth by remember { mutableStateOf(0) }
@@ -401,9 +414,8 @@ fun KeyboardLayout(
 
     val symbolRows = remember {
         listOf(
-            listOf("[", "]", "{", "}", "#", "%", "^", "*", "+", "="),
-            listOf("_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"),
-            listOf(".", ",", "?", "!", "'", "\"", "-", "/", ":", ";")
+            listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
+            listOf("*", "\"", "'", ":", ";", "!", "?", "~", "`", "|")
         )
     }
 
@@ -412,10 +424,10 @@ fun KeyboardLayout(
     }
 
     val allKeyRows = remember(activeKeysRows, isSymbolMode) {
-        val base = if (isSymbolMode) activeKeysRows else (listOf(numberRow) + activeKeysRows)
+        val base = listOf(numberRow) + activeKeysRows
         val list = base.toMutableList()
         if (list.size > 2) {
-            val bottomLetterRowIdx = if (isSymbolMode) 2 else 3
+            val bottomLetterRowIdx = list.size - 1
             val bottomRow = list[bottomLetterRowIdx].toMutableList()
             bottomRow.add(0, if (isSymbolMode) "SYMSHIFT" else "SHIFT")
             bottomRow.add("BACKSPACE")
@@ -490,7 +502,10 @@ fun KeyboardLayout(
             IconButton(
                 onClick = {
                     triggerHaptic()
-                    activeSubPanel = if (activeSubPanel == KeyboardSubPanel.Settings) KeyboardSubPanel.None else KeyboardSubPanel.Settings
+                    val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
                 },
                 modifier = Modifier.size(36.dp)
             ) {
@@ -939,7 +954,32 @@ fun KeyboardLayout(
                     Column(
                         modifier = Modifier.fillMaxSize().padding(8.dp)
                     ) {
-                        Text("Clipboard (Coming Soon)", color = colors.keyTextColor)
+                        Text("Clipboard", color = colors.keyTextColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                        if (clipboardList.isEmpty()) {
+                            Text("No items in clipboard.", color = colors.keyTextColor.copy(alpha=0.5f))
+                        } else {
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(clipboardList.size) { index ->
+                                    val item = clipboardList[index]
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(colors.keyBackground)
+                                            .clickable {
+                                                triggerHaptic()
+                                                onKeyClick(item.text)
+                                            }
+                                            .padding(12.dp)
+                                    ) {
+                                        Text(item.text, color = colors.keyTextColor, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 KeyboardSubPanel.Apps -> {
@@ -951,19 +991,80 @@ fun KeyboardLayout(
                     }
                 }
                 KeyboardSubPanel.Translate -> {
+                    var sourceText by remember { mutableStateOf("") }
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier.fillMaxSize().padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Translate Panel", color = colors.keyTextColor, fontWeight = FontWeight.Bold)
+                        Text("Mock Translator (En -> Es)", color = colors.keyTextColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(modifier = Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = sourceText,
+                                onValueChange = { sourceText = it },
+                                modifier = Modifier.weight(1f).fillMaxHeight().background(colors.keyBackground, RoundedCornerShape(8.dp)).padding(8.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = colors.keyTextColor, fontSize = 16.sp),
+                                decorationBox = { innerTextField ->
+                                    if (sourceText.isEmpty()) Text("Type to translate...", color = colors.keyTextColor.copy(alpha=0.5f))
+                                    innerTextField()
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            KeyButton(
+                                text = "Send",
+                                onClick = {
+                                    triggerHaptic()
+                                    // Mock translate - reverse words
+                                    val translated = sourceText.split(" ").reversed().joinToString(" ")
+                                    onKeyClick(translated + " ")
+                                    sourceText = ""
+                                },
+                                colors = colors,
+                                modifier = Modifier.width(70.dp).fillMaxHeight()
+                            )
+                        }
                     }
                 }
                 KeyboardSubPanel.Gif -> {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier.fillMaxSize().padding(8.dp)
                     ) {
-                        Text("GIFs", color = colors.keyTextColor, fontWeight = FontWeight.Bold)
+                        val gifs = listOf(
+                            "https://media.tenor.com/2RoZ9Qd347cAAAAM/cat-nodding.gif",
+                            "https://media.tenor.com/images/4688b17173e6da8f0290547071e72e36/tenor.gif",
+                            "https://media.tenor.com/images/a5fc8a9ea3fcdbbef05f6354fcecc23d/tenor.gif",
+                            "https://media.tenor.com/images/7a730026eef57e3f608b471ba95e0c8b/tenor.gif"
+                        )
+                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                            columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(80.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
+                        ) {
+                            items(gifs.size) { index ->
+                                val gifUrl = gifs[index]
+                                Box(
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .padding(2.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(colors.keyBackground)
+                                        .clickable {
+                                            triggerHaptic()
+                                            // Mocking GIF insertion by sending URL
+                                            onKeyClick(gifUrl + " ")
+                                        }
+                                ) {
+                                    coil.compose.AsyncImage(
+                                        model = coil.request.ImageRequest.Builder(context)
+                                            .data(gifUrl)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "GIF",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
