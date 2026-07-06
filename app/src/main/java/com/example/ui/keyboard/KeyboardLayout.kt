@@ -52,6 +52,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import coil.ImageLoader
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import android.os.Build
 
 // Define Theme Colors
 data class KeyboardThemeColors(
@@ -278,6 +282,66 @@ val EMOJI_LIST = listOf(
     EmojiItem("💼", "briefcase work job", "Objects")
 )
 
+fun translateText(
+    text: String,
+    targetLang: String,
+    onResult: (String) -> Unit
+) {
+    val langMap = mapOf(
+        "Spanish" to "es",
+        "French" to "fr",
+        "German" to "de",
+        "Italian" to "it",
+        "Japanese" to "ja"
+    )
+    val langCode = langMap[targetLang] ?: "es"
+    
+    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val urlStr = "https://api.mymemory.translated.net/get?q=" + 
+                java.net.URLEncoder.encode(text, "UTF-8") + 
+                "&langpair=en|" + langCode
+            val url = java.net.URL(urlStr)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            
+            val response = conn.inputStream.bufferedReader().readText()
+            
+            val prefix = "\"translatedText\":\""
+            val startIndex = response.indexOf(prefix)
+            if (startIndex != -1) {
+                val sub = response.substring(startIndex + prefix.length)
+                val endIndex = sub.indexOf("\"")
+                if (endIndex != -1) {
+                    val result = sub.substring(0, endIndex)
+                    val unescaped = unescapeUnicode(result)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        onResult(unescaped)
+                    }
+                    return@launch
+                }
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onResult(text)
+            }
+        } catch (e: Exception) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onResult("Error: " + e.message)
+            }
+        }
+    }
+}
+
+fun unescapeUnicode(str: String): String {
+    val regex = "\\\\u([0-9a-fA-F]{4})".toRegex()
+    return regex.replace(str) { matchResult ->
+        val hex = matchResult.groupValues[1]
+        hex.toInt(16).toChar().toString()
+    }
+}
+
 @Composable
 fun KeyboardLayout(
     isSystemKeyboard: Boolean = false,
@@ -286,6 +350,8 @@ fun KeyboardLayout(
     onAction: () -> Unit,
     onSpace: () -> Unit,
     modifier: Modifier = Modifier,
+    getTextBeforeCursor: () -> String = { "" },
+    onReplaceText: (oldText: String, newText: String) -> Unit = { _, _ -> },
     // Used for instant UI updates when values are modified from MainActivity
     refreshTrigger: Int = 0
 ) {
@@ -345,6 +411,73 @@ fun KeyboardLayout(
     var oneHandedMode by remember(refreshTrigger) { mutableStateOf(preferences.oneHandedMode) }
     var deletingSpeed by remember(refreshTrigger) { mutableStateOf(preferences.deletingSpeed) }
     var typingAnimation by remember(localRefreshTrigger) { mutableStateOf(preferences.typingAnimation) }
+    var isSoundEnabled by remember(localRefreshTrigger) { mutableStateOf(preferences.isSoundEnabled) }
+
+    var grammarSuggestion by remember { mutableStateOf<String?>(null) }
+    var grammarOldWord by remember { mutableStateOf<String?>(null) }
+    var grammarNewWord by remember { mutableStateOf<String?>(null) }
+
+    val textBefore = getTextBeforeCursor()
+
+    // Debounced check for grammar correction in predictive engine
+    LaunchedEffect(textBefore) {
+        if (textBefore.isBlank()) {
+            grammarSuggestion = null
+            grammarOldWord = null
+            grammarNewWord = null
+            return@LaunchedEffect
+        }
+        val lastChar = textBefore.last()
+        if (lastChar == ' ' || lastChar == '.' || lastChar == ',' || lastChar == '!') {
+            delay(500) // debounce
+            val textToCheck = textBefore.trim()
+            val words = textToCheck.split("\\s+".toRegex())
+            if (words.size >= 2) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val url = java.net.URL("https://api.languagetool.org/v2/check")
+                        val conn = url.openConnection() as java.net.HttpURLConnection
+                        conn.requestMethod = "POST"
+                        conn.doOutput = true
+                        val data = "language=en-US&text=" + java.net.URLEncoder.encode(textToCheck, "UTF-8")
+                        conn.outputStream.write(data.toByteArray())
+                        val response = conn.inputStream.bufferedReader().readText()
+                        
+                        // Parse replacements
+                        val replacementRegex = """"replacements":\[\{"value":"([^"]+)"""".toRegex()
+                        val foundReplacements = replacementRegex.findAll(response).toList()
+                        if (foundReplacements.isNotEmpty()) {
+                            val offsetRegex = """"offset":([0-9]+)""".toRegex()
+                            val lengthRegex = """"length":([0-9]+)""".toRegex()
+                            val offsetMatch = offsetRegex.find(response)
+                            val lengthMatch = lengthRegex.find(response)
+                            
+                            if (offsetMatch != null && lengthMatch != null) {
+                                val offset = offsetMatch.groupValues[1].toInt()
+                                val length = lengthMatch.groupValues[1].toInt()
+                                val errorWord = textToCheck.substring(offset, offset + length)
+                                val correction = foundReplacements[0].groups[1]?.value ?: ""
+                                
+                                if (errorWord.lowercase() != correction.lowercase() && errorWord.isNotBlank() && correction.isNotBlank()) {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        grammarSuggestion = "Correct '$errorWord' to '$correction'?"
+                                        grammarOldWord = errorWord
+                                        grammarNewWord = correction
+                                    }
+                                }
+                            }
+                        } else {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                grammarSuggestion = null
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // fail silently for predictive keyboard checks
+                    }
+                }
+            }
+        }
+    }
 
     val gesturePoints = remember { mutableStateListOf<Offset>() }
     var containerWidth by remember { mutableStateOf(0) }
@@ -354,6 +487,7 @@ fun KeyboardLayout(
     var activeSubPanel by remember { mutableStateOf<KeyboardSubPanel>(KeyboardSubPanel.None) }
     var showClipboardOverlay by remember { mutableStateOf(false) }
     var isSymbolMode by remember { mutableStateOf(false) }
+    var symbolPage by remember { mutableStateOf(1) }
     var isShiftEnabled by remember { mutableStateOf(false) }
     var emojiSearchQuery by remember { mutableStateOf("") }
     var emojiSelectedCategory by remember { mutableStateOf("All") }
@@ -386,7 +520,7 @@ fun KeyboardLayout(
         if (isHapticEnabled) {
             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         }
-        if (preferences.isSoundEnabled) {
+        if (isSoundEnabled) {
             audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD, 1.0f)
         }
     }
@@ -419,15 +553,26 @@ fun KeyboardLayout(
 
     val numberRow = remember { listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0") }
 
-    val symbolRows = remember {
+    val symbolRowsPage1 = remember {
         listOf(
             listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
-            listOf("=\\<", "*", "\"", "'", ":", ";", "!", "?")
+            listOf("=", "*", "\"", "'", ":", ";", "!", "?", "%"),
+            listOf("~", "`", "|", "<", ">", "{", "}")
         )
     }
 
-    val activeKeysRows = remember(isSymbolMode, rows) {
-        if (isSymbolMode) symbolRows else rows
+    val symbolRowsPage2 = remember {
+        listOf(
+            listOf("[", "]", "{", "}", "#", "%", "^", "*", "+", "="),
+            listOf("_", "\\", "|", "~", "<", ">", "€", "£", "¥"),
+            listOf("•", "¶", "§", "¡", "¿", "«", "»")
+        )
+    }
+
+    val activeKeysRows = remember(isSymbolMode, symbolPage, rows) {
+        if (isSymbolMode) {
+            if (symbolPage == 1) symbolRowsPage1 else symbolRowsPage2
+        } else rows
     }
 
     val allKeyRows = remember(activeKeysRows, isSymbolMode, numberRow) {
@@ -447,6 +592,7 @@ fun KeyboardLayout(
         Column(
             modifier = modifier
                 .fillMaxWidth()
+                .height(278.dp)
                 .background(colors.background)
                 .navigationBarsPadding()
                 .testTag("keyboard_container")
@@ -478,7 +624,45 @@ fun KeyboardLayout(
                 }
             }
 
-            if (currentWord.isEmpty()) {
+            if (grammarSuggestion != null && grammarOldWord != null && grammarNewWord != null) {
+                // Display grammar suggestion!
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable {
+                            triggerFeedback()
+                            onReplaceText(grammarOldWord!!, grammarNewWord!!)
+                            grammarSuggestion = null
+                            grammarOldWord = null
+                            grammarNewWord = null
+                        }
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Spellcheck,
+                        contentDescription = "Grammar Correction",
+                        tint = colors.accentColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = grammarSuggestion!!,
+                        color = colors.accentColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Apply",
+                        tint = colors.accentColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            } else if (currentWord.isEmpty()) {
                 // Shortcuts Mode
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -699,11 +883,12 @@ fun KeyboardLayout(
                                                     modifier = Modifier.weight(1.5f).testTag("shift_key")
                                                 )
                                             } else if (key == "SYMSHIFT") {
+                                                val symText = if (symbolPage == 1) "=\\<" else "1/2"
                                                 KeyButton(
-                                                    text = "=\\<",
+                                                    text = symText,
                                                     onClick = {
                                                         triggerFeedback()
-                                                        isSymbolMode = false
+                                                        symbolPage = if (symbolPage == 1) 2 else 1
                                                     },
                                                     colors = colors,
                                                     modifier = Modifier.weight(1.5f)
@@ -795,6 +980,7 @@ fun KeyboardLayout(
                                                 onClick = {
                                                     triggerFeedback()
                                                     isSymbolMode = !isSymbolMode
+                                                    symbolPage = 1
                                                 }
                                             )
                                             .testTag("toggle_symbols_key"),
@@ -947,8 +1133,11 @@ fun KeyboardLayout(
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical=4.dp)) {
                                     Text("Typing Animation", color = colors.keyTextColor)
                                     androidx.compose.material3.Switch(
-                                        checked = preferences.typingAnimation,
-                                        onCheckedChange = { preferences.typingAnimation = it }
+                                        checked = typingAnimation,
+                                        onCheckedChange = {
+                                            typingAnimation = it
+                                            preferences.typingAnimation = it
+                                        }
                                     )
                                 }
                             }
@@ -956,8 +1145,11 @@ fun KeyboardLayout(
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical=4.dp)) {
                                     Text("Haptic Feedback", color = colors.keyTextColor)
                                     androidx.compose.material3.Switch(
-                                        checked = preferences.isHapticEnabled,
-                                        onCheckedChange = { preferences.isHapticEnabled = it }
+                                        checked = isHapticEnabled,
+                                        onCheckedChange = {
+                                            isHapticEnabled = it
+                                            preferences.isHapticEnabled = it
+                                        }
                                     )
                                 }
                             }
@@ -965,8 +1157,11 @@ fun KeyboardLayout(
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical=4.dp)) {
                                     Text("Typing Sound", color = colors.keyTextColor)
                                     androidx.compose.material3.Switch(
-                                        checked = preferences.isSoundEnabled,
-                                        onCheckedChange = { preferences.isSoundEnabled = it }
+                                        checked = isSoundEnabled,
+                                        onCheckedChange = {
+                                            isSoundEnabled = it
+                                            preferences.isSoundEnabled = it
+                                        }
                                     )
                                 }
                             }
@@ -1137,15 +1332,21 @@ fun KeyboardLayout(
                 }
                 KeyboardSubPanel.Translate -> {
                     var sourceText by remember { mutableStateOf("") }
+                    var translatedText by remember { mutableStateOf("") }
+                    var isTranslating by remember { mutableStateOf(false) }
                     var selectedLang by remember { mutableStateOf("Spanish") }
                     val languages = listOf("Spanish", "French", "German", "Italian", "Japanese")
                     
                     Column(
                         modifier = Modifier.fillMaxSize().padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Google Translate", color = colors.keyTextColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Real Translation", color = colors.keyTextColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 items(languages.size) { index ->
                                     val lang = languages[index]
@@ -1153,7 +1354,10 @@ fun KeyboardLayout(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(if (selectedLang == lang) colors.accentColor else colors.keyBackground)
-                                            .clickable { selectedLang = lang }
+                                            .clickable { 
+                                                selectedLang = lang 
+                                                translatedText = ""
+                                            }
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(lang, color = if (selectedLang == lang) colors.headerBackground else colors.keyTextColor, fontSize = 10.sp)
@@ -1162,33 +1366,85 @@ fun KeyboardLayout(
                             }
                         }
                         
-                        Row(modifier = Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.foundation.text.BasicTextField(
-                                value = sourceText,
-                                onValueChange = { sourceText = it },
-                                modifier = Modifier.weight(1f).fillMaxHeight().background(colors.keyBackground, RoundedCornerShape(8.dp)).padding(8.dp),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = colors.keyTextColor, fontSize = 16.sp),
-                                decorationBox = { innerTextField ->
-                                    if (sourceText.isEmpty()) Text("Type to translate...", color = colors.keyTextColor.copy(alpha=0.5f))
-                                    innerTextField()
+                        Row(modifier = Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = sourceText,
+                                    onValueChange = { 
+                                        sourceText = it
+                                        translatedText = ""
+                                    },
+                                    modifier = Modifier.fillMaxWidth().weight(1f).background(colors.keyBackground, RoundedCornerShape(8.dp)).padding(8.dp),
+                                    textStyle = androidx.compose.ui.text.TextStyle(color = colors.keyTextColor, fontSize = 14.sp),
+                                    decorationBox = { innerTextField ->
+                                        if (sourceText.isEmpty()) Text("Type English text...", color = colors.keyTextColor.copy(alpha=0.5f), fontSize = 14.sp)
+                                        innerTextField()
+                                    }
+                                )
+                                if (translatedText.isNotEmpty() || isTranslating) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().weight(1f).background(colors.keyBackground.copy(alpha=0.5f), RoundedCornerShape(8.dp)).padding(8.dp)
+                                    ) {
+                                        if (isTranslating) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                CircularProgressIndicator(modifier = Modifier.size(12.dp), color = colors.accentColor, strokeWidth = 1.5.dp)
+                                                Text("Translating...", color = colors.keyTextColor.copy(alpha=0.5f), fontSize = 12.sp)
+                                            }
+                                        } else {
+                                            Text(translatedText, color = colors.accentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                        }
+                                    }
                                 }
-                            )
+                            }
                             Spacer(modifier = Modifier.width(8.dp))
-                            KeyButton(
-                                text = "Send",
-                                onClick = {
-                                    triggerFeedback()
-                                    val translated = "[$selectedLang] " + sourceText.split(" ").reversed().joinToString(" ")
-                                    onKeyClick(translated + " ")
-                                    sourceText = ""
-                                },
-                                colors = colors,
-                                modifier = Modifier.width(70.dp).fillMaxHeight()
-                            )
+                            Column(modifier = Modifier.width(80.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                KeyButton(
+                                    text = if (translatedText.isEmpty()) "Translate" else "Send",
+                                    onClick = {
+                                        triggerFeedback()
+                                        if (translatedText.isNotEmpty()) {
+                                            onKeyClick(translatedText + " ")
+                                            sourceText = ""
+                                            translatedText = ""
+                                        } else if (sourceText.isNotBlank()) {
+                                            isTranslating = true
+                                            translateText(sourceText, selectedLang) { result ->
+                                                translatedText = result
+                                                isTranslating = false
+                                            }
+                                        }
+                                    },
+                                    colors = colors,
+                                    modifier = Modifier.fillMaxWidth().weight(1f)
+                                )
+                                if (translatedText.isNotEmpty()) {
+                                    KeyButton(
+                                        text = "Clear",
+                                        onClick = {
+                                            triggerFeedback()
+                                            sourceText = ""
+                                            translatedText = ""
+                                        },
+                                        colors = colors,
+                                        modifier = Modifier.fillMaxWidth().weight(0.8f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
                 KeyboardSubPanel.Gif -> {
+                    val gifImageLoader = remember {
+                        coil.ImageLoader.Builder(context)
+                            .components {
+                                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                                    add(coil.decode.ImageDecoderDecoder.Factory())
+                                } else {
+                                    add(coil.decode.GifDecoder.Factory())
+                                }
+                            }
+                            .build()
+                    }
                     Column(
                         modifier = Modifier.fillMaxSize().padding(8.dp)
                     ) {
@@ -1221,6 +1477,7 @@ fun KeyboardLayout(
                                             .data(gifUrl)
                                             .crossfade(true)
                                             .build(),
+                                        imageLoader = gifImageLoader,
                                         contentDescription = "GIF",
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
@@ -1287,18 +1544,25 @@ fun KeyButton(
     }
 
     if (isPressed && typingAnim) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val yOffsetPx = with(density) { -58.dp.roundToPx() }
         androidx.compose.ui.window.Popup(
             alignment = Alignment.TopCenter,
-            offset = androidx.compose.ui.unit.IntOffset(0, -180)
+            offset = androidx.compose.ui.unit.IntOffset(0, yOffsetPx)
         ) {
             Box(
                 modifier = Modifier
-                    .size(60.dp)
-                    .background(colors.accentColor, CircleShape)
+                    .size(56.dp)
+                    .background(colors.accentColor, RoundedCornerShape(8.dp))
                     .padding(4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text, fontSize = 34.sp, color = colors.headerBackground)
+                Text(
+                    text = text,
+                    fontSize = 28.sp,
+                    color = colors.background,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

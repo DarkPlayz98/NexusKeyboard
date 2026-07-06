@@ -85,6 +85,23 @@ class MinimalistInputMethodService : InputMethodService(), LifecycleOwner, ViewM
                 },
                 onSpace = {
                     currentInputConnection?.commitText(" ", 1)
+                },
+                getTextBeforeCursor = {
+                    currentInputConnection?.getTextBeforeCursor(100, 0)?.toString() ?: ""
+                },
+                onReplaceText = { oldText, newText ->
+                    val conn = currentInputConnection
+                    if (conn != null) {
+                        val textBefore = conn.getTextBeforeCursor(100, 0)?.toString() ?: ""
+                        if (textBefore.endsWith(oldText)) {
+                            conn.beginBatchEdit()
+                            conn.deleteSurroundingText(oldText.length, 0)
+                            conn.commitText(newText, 1)
+                            conn.endBatchEdit()
+                        } else {
+                            conn.commitText(newText, 1)
+                        }
+                    }
                 }
             )
         }
