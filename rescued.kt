@@ -1,5 +1,4 @@
 package com.example.ui.keyboard
-import androidx.compose.foundation.shape.CircleShape
 
 import android.content.Context
 import android.os.Vibrator
@@ -40,7 +39,6 @@ import com.example.data.ClipboardItem
 import com.example.data.PreferencesManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
@@ -51,7 +49,6 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 
 // Define Theme Colors
 data class KeyboardThemeColors(
@@ -422,7 +419,7 @@ fun KeyboardLayout(
     val symbolRows = remember {
         listOf(
             listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
-            listOf("=\\<", "*", "\"", "'", ":", ";", "!", "?")
+            listOf("=\<", "*", "\"", "'", ":", ";", "!", "?")
         )
     }
 
@@ -727,7 +724,7 @@ fun KeyboardLayout(
                                                                         delay(400)
                                                                         var currentDelay = 100L
                                                                         val minDelay = (20f / preferences.deletingSpeed.coerceAtLeast(0.1f)).toLong().coerceIn(10L, 200L)
-                                                                        while (isActive) {
+                                                                        while (kotlinx.coroutines.isActive) {
                                                                             triggerFeedback()
                                                                             handleBackspace()
                                                                             delay(currentDelay)
@@ -1035,106 +1032,6 @@ fun KeyboardLayout(
                         }
                     }
                 }
-                KeyboardSubPanel.Grammar -> {
-                    var sourceText by remember { mutableStateOf("") }
-                    var isChecking by remember { mutableStateOf(false) }
-                    var hasChecked by remember { mutableStateOf(false) }
-                    val scope = rememberCoroutineScope()
-                    
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("LanguageTool Grammar Check", color = colors.keyTextColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            if (isChecking) {
-                                androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(16.dp), color = colors.accentColor, strokeWidth = 2.dp)
-                            }
-                        }
-                        
-                        Row(modifier = Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.foundation.text.BasicTextField(
-                                value = sourceText,
-                                onValueChange = { 
-                                    sourceText = it
-                                    hasChecked = false 
-                                },
-                                modifier = Modifier.weight(1f).fillMaxHeight().background(colors.keyBackground, RoundedCornerShape(8.dp)).padding(8.dp),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = colors.keyTextColor, fontSize = 16.sp),
-                                decorationBox = { innerTextField ->
-                                    if (sourceText.isEmpty()) Text("Type or paste text to check...", color = colors.keyTextColor.copy(alpha=0.5f))
-                                    innerTextField()
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            if (!hasChecked) {
-                                KeyButton(
-                                    text = "Check",
-                                    onClick = {
-                                        triggerFeedback()
-                                        if (sourceText.isNotBlank()) {
-                                            isChecking = true
-                                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                                try {
-                                                    val url = java.net.URL("https://api.languagetool.org/v2/check")
-                                                    val conn = url.openConnection() as java.net.HttpURLConnection
-                                                    conn.requestMethod = "POST"
-                                                    conn.doOutput = true
-                                                    val data = "language=en-US&text=" + java.net.URLEncoder.encode(sourceText, "UTF-8")
-                                                    conn.outputStream.write(data.toByteArray())
-                                                    val response = conn.inputStream.bufferedReader().readText()
-                                                    
-                                                    // Simple regex parsing using raw strings
-                                                    val matchesRegex = """"matches":\[(.*?)\]""".toRegex(RegexOption.DOT_MATCHES_ALL)
-                                                    val matcher = matchesRegex.find(response)
-                                                    if (matcher != null) {
-                                                        val replacementRegex = """"replacements":\[\{"value":"([^"]+)"""".toRegex()
-                                                        val foundReplacements = replacementRegex.findAll(response).toList()
-                                                        if (foundReplacements.isNotEmpty()) {
-                                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                                val newWord = foundReplacements[0].groups[1]?.value ?: ""
-                                                                sourceText = "Suggestion: " + newWord
-                                                            }
-                                                        } else {
-                                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                                sourceText = sourceText + " (No errors found)"
-                                                            }
-                                                        }
-                                                    } else {
-                                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                            sourceText = sourceText + " (No errors found)"
-                                                        }
-                                                    }
-                                                } catch(e: Exception) {
-                                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                        sourceText = "Error: " + e.message
-                                                    }
-                                                } finally {
-                                                    isChecking = false
-                                                    hasChecked = true
-                                                }
-                                            }
-                                        }
-                                    },
-                                    colors = colors,
-                                    modifier = Modifier.width(70.dp).fillMaxHeight()
-                                )
-                            } else {
-                                KeyButton(
-                                    text = "Send",
-                                    onClick = {
-                                        triggerFeedback()
-                                        onKeyClick(sourceText + " ")
-                                        sourceText = ""
-                                        hasChecked = false
-                                    },
-                                    colors = colors,
-                                    modifier = Modifier.width(70.dp).fillMaxHeight()
-                                )
-                            }
-                        }
-                    }
-                }
                 KeyboardSubPanel.Translate -> {
                     var sourceText by remember { mutableStateOf("") }
                     var selectedLang by remember { mutableStateOf("Spanish") }
@@ -1293,12 +1190,12 @@ fun KeyButton(
         ) {
             Box(
                 modifier = Modifier
-                    .size(60.dp)
-                    .background(colors.accentColor, CircleShape)
+                    .size(60.dp, 75.dp)
+                    .background(colors.keyBackground, RoundedCornerShape(12.dp))
                     .padding(4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text, fontSize = 34.sp, color = colors.headerBackground)
+                Text(text, fontSize = 34.sp, color = colors.keyTextColor)
             }
         }
     }
