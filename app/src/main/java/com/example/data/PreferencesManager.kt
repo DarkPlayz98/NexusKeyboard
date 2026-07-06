@@ -16,6 +16,7 @@ class PreferencesManager(context: Context) {
         const val KEY_ONE_HANDED = "one_handed_mode"
         const val KEY_DELETING_SPEED = "deleting_speed"
         const val KEY_TYPING_ANIMATION = "typing_animation"
+        const val KEY_SOUND_ENABLED = "sound_enabled"
     }
 
     var deletingSpeed: Float
@@ -37,6 +38,10 @@ class PreferencesManager(context: Context) {
     var isHapticEnabled: Boolean
         get() = prefs.getBoolean(KEY_HAPTIC_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_HAPTIC_ENABLED, value).apply()
+
+    var isSoundEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SOUND_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_SOUND_ENABLED, value).apply()
 
     var hapticStrength: Int
         get() = prefs.getInt(KEY_HAPTIC_STRENGTH, 50)
