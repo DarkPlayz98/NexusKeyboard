@@ -375,33 +375,7 @@ fun KeyboardLayout(
     val preferences = remember { PreferencesManager(context) }
 
     var currentWord by remember(refreshTrigger) { mutableStateOf("") }
-    
-    val handleKeyClick: (String) -> Unit = { text ->
-        if (text == " " || text == "\n" || text == "." || text == ",") {
-            currentWord = ""
-        } else if (text.length == 1 && text[0].isLetter()) {
-            currentWord += text
-        }
-        onKeyClick(text)
-    }
-    
     val backspaceInteractionSource = remember { MutableInteractionSource() }
-    val handleBackspace: () -> Unit = {
-        if (currentWord.isNotEmpty()) {
-            currentWord = currentWord.dropLast(1)
-        }
-        onBackspace()
-    }
-    
-    val handleSpace: () -> Unit = {
-        currentWord = ""
-        onSpace()
-    }
-    
-    val handleAction: () -> Unit = {
-        currentWord = ""
-        onAction()
-    }
 
     // Read states
     var selectedTheme by remember(localRefreshTrigger) { mutableStateOf(preferences.selectedTheme) }
@@ -417,10 +391,250 @@ fun KeyboardLayout(
     var grammarOldWord by remember { mutableStateOf<String?>(null) }
     var grammarNewWord by remember { mutableStateOf<String?>(null) }
 
+    // REAL-TIME TRANSLATOR STATES
+    var translateSourceText by remember { mutableStateOf("") }
+    var translateResultText by remember { mutableStateOf("") }
+    var isTranslatingRealTime by remember { mutableStateOf(false) }
+    var sourceLang by remember { mutableStateOf("English") }
+    var targetLang by remember { mutableStateOf("Finnish") }
+
+    // UPGRADED GRAMMAR PANEL STATES
+    var grammarInputText by remember { mutableStateOf("") }
+    var grammarCheckedText by remember { mutableStateOf("") }
+    var isCheckingGrammar by remember { mutableStateOf(false) }
+    var grammarCheckMode by remember { mutableStateOf("AI Proofread") } // "AI Proofread" or "Standard Check"
+
+    // GEMINI REAL-TIME TRANSLATION
+    fun translateWithGemini(
+        text: String,
+        from: String,
+        to: String,
+        onResult: (String) -> Unit
+    ) {
+        if (text.isBlank()) {
+            onResult("")
+            return
+        }
+        val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "YOUR_API_KEY") {
+            // Local fallback for English-Finnish translation when offline or without API key
+            val lowercaseText = text.lowercase().trim()
+            val fallback = when {
+                lowercaseText == "hello" && to == "Finnish" -> "Hei"
+                lowercaseText == "how are you" && to == "Finnish" -> "Mitä kuuluu?"
+                lowercaseText == "thank you" && to == "Finnish" -> "Kiitos"
+                lowercaseText == "yes" && to == "Finnish" -> "Kyllä"
+                lowercaseText == "no" && to == "Finnish" -> "Ei"
+                lowercaseText == "good morning" && to == "Finnish" -> "Hyvää huomenta"
+                else -> "$text [$to]"
+            }
+            onResult(fallback)
+            return
+        }
+        
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = java.net.URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                
+                val prompt = "Translate the following short phrase or text from $from to $to. Respond ONLY with the direct translation, do not include quotes, explanations, intro, or outro notes: $text"
+                val jsonBody = """
+                    {
+                      "contents": [
+                        {
+                          "parts": [
+                            {
+                              "text": ${org.json.JSONObject.quote(prompt)}
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                """.trimIndent()
+                
+                conn.outputStream.write(jsonBody.toByteArray())
+                val response = conn.inputStream.bufferedReader().readText()
+                val textRegex = """"text":\s*"([^"]+)"""".toRegex()
+                val match = textRegex.find(response)
+                if (match != null) {
+                    var translated = match.groupValues[1]
+                    translated = translated
+                        .replace("\\n", "\n")
+                        .replace("\\\"", "\"")
+                        .replace("\\\\", "\\")
+                        .trim()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        onResult(translated)
+                    }
+                } else {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        onResult("$text [$to]")
+                    }
+                }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    onResult("$text [$to]")
+                }
+            }
+        }
+    }
+
+    // GEMINI REAL-TIME GRAMMAR PROOFREADER
+    fun proofreadWithGemini(
+        text: String,
+        onResult: (String) -> Unit
+    ) {
+        if (text.isBlank()) {
+            onResult("")
+            return
+        }
+        val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "YOUR_API_KEY") {
+            onResult("Error: Gemini API key not set in Secrets.")
+            return
+        }
+        
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = java.net.URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                
+                val prompt = "Correct the grammar, spelling, and phrasing of the following text to make it natural and correct. Respond ONLY with the corrected text, with no preamble, explanations, quotes, or formatting: $text"
+                val jsonBody = """
+                    {
+                      "contents": [
+                        {
+                          "parts": [
+                            {
+                              "text": ${org.json.JSONObject.quote(prompt)}
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                """.trimIndent()
+                
+                conn.outputStream.write(jsonBody.toByteArray())
+                val response = conn.inputStream.bufferedReader().readText()
+                val textRegex = """"text":\s*"([^"]+)"""".toRegex()
+                val match = textRegex.find(response)
+                if (match != null) {
+                    var corrected = match.groupValues[1]
+                    corrected = corrected
+                        .replace("\\n", "\n")
+                        .replace("\\\"", "\"")
+                        .replace("\\\\", "\\")
+                        .trim()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        onResult(corrected)
+                    }
+                } else {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        onResult(text)
+                    }
+                }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    onResult("AI Error: " + e.message)
+                }
+            }
+        }
+    }
+
+    // Debounced LaunchedEffect for Real-time Translator
+    LaunchedEffect(translateSourceText, sourceLang, targetLang) {
+        if (translateSourceText.isBlank()) {
+            translateResultText = ""
+            return@LaunchedEffect
+        }
+        delay(400) // debounce
+        isTranslatingRealTime = true
+        translateWithGemini(translateSourceText, sourceLang, targetLang) { result ->
+            translateResultText = result
+            isTranslatingRealTime = false
+        }
+    }
+
+    // Debounced LaunchedEffect for Upgraded Grammar Panel
+    LaunchedEffect(grammarInputText, grammarCheckMode) {
+        if (grammarInputText.isBlank()) {
+            grammarCheckedText = ""
+            return@LaunchedEffect
+        }
+        delay(500) // debounce
+        isCheckingGrammar = true
+        if (grammarCheckMode == "AI Proofread") {
+            proofreadWithGemini(grammarInputText) { result ->
+                grammarCheckedText = result
+                isCheckingGrammar = false
+            }
+        } else {
+            // LanguageTool Standard Check
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val langCode = when (selectedLanguage) {
+                        "FI" -> "fi-FI"
+                        "ES" -> "es"
+                        "FR" -> "fr"
+                        "DE" -> "de"
+                        "IT" -> "it"
+                        else -> "en-US"
+                    }
+                    val url = java.net.URL("https://api.languagetool.org/v2/check")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.doOutput = true
+                    val data = "language=$langCode&text=" + java.net.URLEncoder.encode(grammarInputText, "UTF-8")
+                    conn.outputStream.write(data.toByteArray())
+                    val response = conn.inputStream.bufferedReader().readText()
+                    
+                    val replacementRegex = """"replacements":\[\{"value":"([^"]+)"""".toRegex()
+                    val foundReplacements = replacementRegex.findAll(response).toList()
+                    if (foundReplacements.isNotEmpty()) {
+                        val correction = foundReplacements[0].groups[1]?.value ?: ""
+                        val offsetRegex = """"offset":([0-9]+)""".toRegex()
+                        val lengthRegex = """"length":([0-9]+)""".toRegex()
+                        val offsetMatch = offsetRegex.find(response)
+                        val lengthMatch = lengthRegex.find(response)
+                        
+                        if (offsetMatch != null && lengthMatch != null) {
+                            val offset = offsetMatch.groupValues[1].toInt()
+                            val length = lengthMatch.groupValues[1].toInt()
+                            val finalResult = grammarInputText.replaceRange(offset, offset + length, correction)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                grammarCheckedText = finalResult
+                            }
+                        } else {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                grammarCheckedText = grammarInputText
+                            }
+                        }
+                    } else {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            grammarCheckedText = grammarInputText
+                        }
+                    }
+                } catch (e: Exception) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        grammarCheckedText = "Error: " + e.localizedMessage
+                    }
+                } finally {
+                    isCheckingGrammar = false
+                }
+            }
+        }
+    }
+
     val textBefore = getTextBeforeCursor()
 
-    // Debounced check for grammar correction in predictive engine
-    LaunchedEffect(textBefore) {
+    // Debounced check for grammar correction in predictive engine (multi-language enabled!)
+    LaunchedEffect(textBefore, selectedLanguage) {
         if (textBefore.isBlank()) {
             grammarSuggestion = null
             grammarOldWord = null
@@ -435,11 +649,19 @@ fun KeyboardLayout(
             if (words.size >= 2) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try {
+                        val langCode = when (selectedLanguage) {
+                            "FI" -> "fi-FI"
+                            "ES" -> "es"
+                            "FR" -> "fr"
+                            "DE" -> "de"
+                            "IT" -> "it"
+                            else -> "en-US"
+                        }
                         val url = java.net.URL("https://api.languagetool.org/v2/check")
                         val conn = url.openConnection() as java.net.HttpURLConnection
                         conn.requestMethod = "POST"
                         conn.doOutput = true
-                        val data = "language=en-US&text=" + java.net.URLEncoder.encode(textToCheck, "UTF-8")
+                        val data = "language=$langCode&text=" + java.net.URLEncoder.encode(textToCheck, "UTF-8")
                         conn.outputStream.write(data.toByteArray())
                         val response = conn.inputStream.bufferedReader().readText()
                         
@@ -497,6 +719,84 @@ fun KeyboardLayout(
 
     // Fetch Custom Themes from DB
     val customThemes by database.customThemeDao().getAll().collectAsState(initial = emptyList())
+
+    val handleKeyClick: (String) -> Unit = { text ->
+        if (activeSubPanel == KeyboardSubPanel.Translate) {
+            if (text == "\n") {
+                if (translateResultText.isNotEmpty()) {
+                    onKeyClick(translateResultText + " ")
+                    translateSourceText = ""
+                    translateResultText = ""
+                }
+            } else {
+                translateSourceText += text
+            }
+        } else if (activeSubPanel == KeyboardSubPanel.Grammar) {
+            if (text == "\n") {
+                if (grammarCheckedText.isNotEmpty() && !grammarCheckedText.startsWith("Error:") && grammarCheckedText != "No errors found!") {
+                    onKeyClick(grammarCheckedText + " ")
+                    grammarInputText = ""
+                    grammarCheckedText = ""
+                }
+            } else {
+                grammarInputText += text
+            }
+        } else {
+            if (text == " " || text == "\n" || text == "." || text == ",") {
+                currentWord = ""
+            } else if (text.length == 1 && text[0].isLetter()) {
+                currentWord += text
+            }
+            onKeyClick(text)
+        }
+    }
+
+    val handleBackspace: () -> Unit = {
+        if (activeSubPanel == KeyboardSubPanel.Translate) {
+            if (translateSourceText.isNotEmpty()) {
+                translateSourceText = translateSourceText.dropLast(1)
+            }
+        } else if (activeSubPanel == KeyboardSubPanel.Grammar) {
+            if (grammarInputText.isNotEmpty()) {
+                grammarInputText = grammarInputText.dropLast(1)
+            }
+        } else {
+            if (currentWord.isNotEmpty()) {
+                currentWord = currentWord.dropLast(1)
+            }
+            onBackspace()
+        }
+    }
+
+    val handleSpace: () -> Unit = {
+        if (activeSubPanel == KeyboardSubPanel.Translate) {
+            translateSourceText += " "
+        } else if (activeSubPanel == KeyboardSubPanel.Grammar) {
+            grammarInputText += " "
+        } else {
+            currentWord = ""
+            onSpace()
+        }
+    }
+
+    val handleAction: () -> Unit = {
+        if (activeSubPanel == KeyboardSubPanel.Translate) {
+            if (translateResultText.isNotEmpty()) {
+                onKeyClick(translateResultText + " ")
+                translateSourceText = ""
+                translateResultText = ""
+            }
+        } else if (activeSubPanel == KeyboardSubPanel.Grammar) {
+            if (grammarCheckedText.isNotEmpty() && !grammarCheckedText.startsWith("Error:") && grammarCheckedText != "No errors found!") {
+                onKeyClick(grammarCheckedText + " ")
+                grammarInputText = ""
+                grammarCheckedText = ""
+            }
+        } else {
+            currentWord = ""
+            onAction()
+        }
+    }
 
     val colors = remember(selectedTheme, customThemes) {
         val custom = customThemes.find { it.name == selectedTheme }
@@ -588,15 +888,365 @@ fun KeyboardLayout(
         list
     }
 
+    val isTopPanelOpen = activeSubPanel == KeyboardSubPanel.Translate || activeSubPanel == KeyboardSubPanel.Grammar
+    val outerHeight = if (isTopPanelOpen) 390.dp else 320.dp
+    val bodyHeight = if (isTopPanelOpen) 242.dp else 272.dp
+
     CompositionLocalProvider(LocalTypingAnimation provides typingAnimation) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .height(278.dp)
+                .height(outerHeight)
                 .background(colors.background)
                 .navigationBarsPadding()
                 .testTag("keyboard_container")
         ) {
+        // --- TRANSLATE PANEL (TOP) ---
+        if (activeSubPanel == KeyboardSubPanel.Translate) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(70.dp)
+                    .background(colors.background)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                // Row 1: Back, Source Pill, Swap, Target Pill, Clear
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(28.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    IconButton(
+                        onClick = {
+                            triggerFeedback()
+                            activeSubPanel = KeyboardSubPanel.None
+                            translateSourceText = ""
+                            translateResultText = ""
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colors.keyTextColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    
+                    // Source Language Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.keyBackground)
+                            .clickable {
+                                triggerFeedback()
+                                val langs = listOf("English", "Finnish", "Spanish", "French", "German", "Japanese")
+                                val nextIdx = (langs.indexOf(sourceLang) + 1) % langs.size
+                                sourceLang = langs[nextIdx]
+                            }
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(sourceLang, color = colors.keyTextColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    // Swap Icon
+                    IconButton(
+                        onClick = {
+                            triggerFeedback()
+                            val temp = sourceLang
+                            sourceLang = targetLang
+                            targetLang = temp
+                            val tempText = translateSourceText
+                            translateSourceText = translateResultText
+                            translateResultText = tempText
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = "Swap",
+                            tint = colors.accentColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    
+                    // Target Language Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.keyBackground)
+                            .clickable {
+                                triggerFeedback()
+                                val langs = listOf("Finnish", "English", "Spanish", "French", "German", "Japanese")
+                                val nextIdx = (langs.indexOf(targetLang) + 1) % langs.size
+                                targetLang = langs[nextIdx]
+                            }
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(targetLang, color = colors.keyTextColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    // Clear Button
+                    if (translateSourceText.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                triggerFeedback()
+                                translateSourceText = ""
+                                translateResultText = ""
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear",
+                                tint = colors.keyTextColor.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // Row 2: Source Text & Target Text Displays
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Input Display
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(colors.keyBackground)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (translateSourceText.isEmpty()) {
+                            Text(
+                                text = "Type on keyboard...",
+                                color = colors.keyTextColor.copy(alpha = 0.5f),
+                                fontSize = 11.sp
+                            )
+                        } else {
+                            Text(
+                                text = translateSourceText,
+                                color = colors.keyTextColor,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    
+                    // Translated Result Display (Clicking commits/inserts!)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(colors.keyBackground.copy(alpha = 0.8f))
+                            .clickable {
+                                if (translateResultText.isNotEmpty()) {
+                                    triggerFeedback()
+                                    onKeyClick(translateResultText + " ")
+                                    translateSourceText = ""
+                                    translateResultText = ""
+                                }
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (isTranslatingRealTime) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(10.dp),
+                                    color = colors.accentColor,
+                                    strokeWidth = 1.dp
+                                )
+                                Text("Translating...", color = colors.keyTextColor.copy(alpha = 0.5f), fontSize = 10.sp)
+                            }
+                        } else if (translateResultText.isEmpty()) {
+                            Text("Translation...", color = colors.keyTextColor.copy(alpha = 0.3f), fontSize = 11.sp)
+                        } else {
+                            Text(
+                                text = translateResultText,
+                                color = colors.accentColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(colors.keyTextColor.copy(alpha = 0.1f)))
+        }
+
+        // --- GRAMMAR PANEL (TOP) ---
+        if (activeSubPanel == KeyboardSubPanel.Grammar) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(70.dp)
+                    .background(colors.background)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                // Row 1: Back, Mode Toggle Pill, Clear
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(28.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    IconButton(
+                        onClick = {
+                            triggerFeedback()
+                            activeSubPanel = KeyboardSubPanel.None
+                            grammarInputText = ""
+                            grammarCheckedText = ""
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colors.keyTextColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    
+                    // Mode Toggle Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (grammarCheckMode == "AI Proofread") colors.accentColor else colors.keyBackground)
+                            .clickable {
+                                triggerFeedback()
+                                grammarCheckMode = if (grammarCheckMode == "AI Proofread") "Standard Check" else "AI Proofread"
+                            }
+                            .padding(horizontal = 10.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val textColor = if (grammarCheckMode == "AI Proofread") colors.background else colors.keyTextColor
+                        Text(grammarCheckMode, color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    // Clear Button
+                    if (grammarInputText.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                triggerFeedback()
+                                grammarInputText = ""
+                                grammarCheckedText = ""
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear",
+                                tint = colors.keyTextColor.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // Row 2: Input & Checked Result Displays
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Input Display
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(colors.keyBackground)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (grammarInputText.isEmpty()) {
+                            Text(
+                                text = "Type text to check...",
+                                color = colors.keyTextColor.copy(alpha = 0.5f),
+                                fontSize = 11.sp
+                            )
+                        } else {
+                            Text(
+                                text = grammarInputText,
+                                color = colors.keyTextColor,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    
+                    // Checked Result Display (Clicking commits/inserts!)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(colors.keyBackground.copy(alpha = 0.8f))
+                            .clickable {
+                                if (grammarCheckedText.isNotEmpty() && !grammarCheckedText.startsWith("Error:") && grammarCheckedText != "No errors found!") {
+                                    triggerFeedback()
+                                    onKeyClick(grammarCheckedText + " ")
+                                    grammarInputText = ""
+                                    grammarCheckedText = ""
+                                }
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (isCheckingGrammar) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(10.dp),
+                                    color = colors.accentColor,
+                                    strokeWidth = 1.dp
+                                )
+                                Text("Checking...", color = colors.keyTextColor.copy(alpha = 0.5f), fontSize = 10.sp)
+                            }
+                        } else if (grammarCheckedText.isEmpty()) {
+                            Text("Suggestions...", color = colors.keyTextColor.copy(alpha = 0.3f), fontSize = 11.sp)
+                        } else {
+                            val textColor = if (grammarCheckedText == "No errors found!" || grammarCheckedText.startsWith("Error:")) colors.keyTextColor.copy(alpha = 0.6f) else colors.accentColor
+                            Text(
+                                text = grammarCheckedText,
+                                color = textColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(colors.keyTextColor.copy(alpha = 0.1f)))
+        }
+
         // --- SUGGESTION BAR / SHORTCUTS ---
         Row(
             modifier = Modifier
@@ -759,9 +1409,9 @@ fun KeyboardLayout(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(230.dp)
+                .height(bodyHeight)
         ) {
-            when (activeSubPanel) {
+            when (val panelToRender = if (activeSubPanel == KeyboardSubPanel.Translate || activeSubPanel == KeyboardSubPanel.Grammar) KeyboardSubPanel.None else activeSubPanel) {
                 KeyboardSubPanel.None -> {
                     val paddingStart = if (oneHandedMode == "Right") 40.dp else 0.dp
                     val paddingEnd = if (oneHandedMode == "Left") 40.dp else 0.dp
@@ -1231,207 +1881,10 @@ fun KeyboardLayout(
                     }
                 }
                 KeyboardSubPanel.Grammar -> {
-                    var sourceText by remember { mutableStateOf("") }
-                    var isChecking by remember { mutableStateOf(false) }
-                    var hasChecked by remember { mutableStateOf(false) }
-                    val scope = rememberCoroutineScope()
-                    
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("LanguageTool Grammar Check", color = colors.keyTextColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            if (isChecking) {
-                                androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(16.dp), color = colors.accentColor, strokeWidth = 2.dp)
-                            }
-                        }
-                        
-                        Row(modifier = Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.foundation.text.BasicTextField(
-                                value = sourceText,
-                                onValueChange = { 
-                                    sourceText = it
-                                    hasChecked = false 
-                                },
-                                modifier = Modifier.weight(1f).fillMaxHeight().background(colors.keyBackground, RoundedCornerShape(8.dp)).padding(8.dp),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = colors.keyTextColor, fontSize = 16.sp),
-                                decorationBox = { innerTextField ->
-                                    if (sourceText.isEmpty()) Text("Type or paste text to check...", color = colors.keyTextColor.copy(alpha=0.5f))
-                                    innerTextField()
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            if (!hasChecked) {
-                                KeyButton(
-                                    text = "Check",
-                                    onClick = {
-                                        triggerFeedback()
-                                        if (sourceText.isNotBlank()) {
-                                            isChecking = true
-                                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                                try {
-                                                    val url = java.net.URL("https://api.languagetool.org/v2/check")
-                                                    val conn = url.openConnection() as java.net.HttpURLConnection
-                                                    conn.requestMethod = "POST"
-                                                    conn.doOutput = true
-                                                    val data = "language=en-US&text=" + java.net.URLEncoder.encode(sourceText, "UTF-8")
-                                                    conn.outputStream.write(data.toByteArray())
-                                                    val response = conn.inputStream.bufferedReader().readText()
-                                                    
-                                                    // Simple regex parsing using raw strings
-                                                    val matchesRegex = """"matches":\[(.*?)\]""".toRegex(RegexOption.DOT_MATCHES_ALL)
-                                                    val matcher = matchesRegex.find(response)
-                                                    if (matcher != null) {
-                                                        val replacementRegex = """"replacements":\[\{"value":"([^"]+)"""".toRegex()
-                                                        val foundReplacements = replacementRegex.findAll(response).toList()
-                                                        if (foundReplacements.isNotEmpty()) {
-                                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                                val newWord = foundReplacements[0].groups[1]?.value ?: ""
-                                                                sourceText = "Suggestion: " + newWord
-                                                            }
-                                                        } else {
-                                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                                sourceText = sourceText + " (No errors found)"
-                                                            }
-                                                        }
-                                                    } else {
-                                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                            sourceText = sourceText + " (No errors found)"
-                                                        }
-                                                    }
-                                                } catch(e: Exception) {
-                                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                        sourceText = "Error: " + e.message
-                                                    }
-                                                } finally {
-                                                    isChecking = false
-                                                    hasChecked = true
-                                                }
-                                            }
-                                        }
-                                    },
-                                    colors = colors,
-                                    modifier = Modifier.width(70.dp).fillMaxHeight()
-                                )
-                            } else {
-                                KeyButton(
-                                    text = "Send",
-                                    onClick = {
-                                        triggerFeedback()
-                                        onKeyClick(sourceText + " ")
-                                        sourceText = ""
-                                        hasChecked = false
-                                    },
-                                    colors = colors,
-                                    modifier = Modifier.width(70.dp).fillMaxHeight()
-                                )
-                            }
-                        }
-                    }
+                    // Handled at the top of the main Column
                 }
                 KeyboardSubPanel.Translate -> {
-                    var sourceText by remember { mutableStateOf("") }
-                    var translatedText by remember { mutableStateOf("") }
-                    var isTranslating by remember { mutableStateOf(false) }
-                    var selectedLang by remember { mutableStateOf("Spanish") }
-                    val languages = listOf("Spanish", "French", "German", "Italian", "Japanese")
-                    
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Real Translation", color = colors.keyTextColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                items(languages.size) { index ->
-                                    val lang = languages[index]
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(if (selectedLang == lang) colors.accentColor else colors.keyBackground)
-                                            .clickable { 
-                                                selectedLang = lang 
-                                                translatedText = ""
-                                            }
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(lang, color = if (selectedLang == lang) colors.headerBackground else colors.keyTextColor, fontSize = 10.sp)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Row(modifier = Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                androidx.compose.foundation.text.BasicTextField(
-                                    value = sourceText,
-                                    onValueChange = { 
-                                        sourceText = it
-                                        translatedText = ""
-                                    },
-                                    modifier = Modifier.fillMaxWidth().weight(1f).background(colors.keyBackground, RoundedCornerShape(8.dp)).padding(8.dp),
-                                    textStyle = androidx.compose.ui.text.TextStyle(color = colors.keyTextColor, fontSize = 14.sp),
-                                    decorationBox = { innerTextField ->
-                                        if (sourceText.isEmpty()) Text("Type English text...", color = colors.keyTextColor.copy(alpha=0.5f), fontSize = 14.sp)
-                                        innerTextField()
-                                    }
-                                )
-                                if (translatedText.isNotEmpty() || isTranslating) {
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth().weight(1f).background(colors.keyBackground.copy(alpha=0.5f), RoundedCornerShape(8.dp)).padding(8.dp)
-                                    ) {
-                                        if (isTranslating) {
-                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                CircularProgressIndicator(modifier = Modifier.size(12.dp), color = colors.accentColor, strokeWidth = 1.5.dp)
-                                                Text("Translating...", color = colors.keyTextColor.copy(alpha=0.5f), fontSize = 12.sp)
-                                            }
-                                        } else {
-                                            Text(translatedText, color = colors.accentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.width(80.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                KeyButton(
-                                    text = if (translatedText.isEmpty()) "Translate" else "Send",
-                                    onClick = {
-                                        triggerFeedback()
-                                        if (translatedText.isNotEmpty()) {
-                                            onKeyClick(translatedText + " ")
-                                            sourceText = ""
-                                            translatedText = ""
-                                        } else if (sourceText.isNotBlank()) {
-                                            isTranslating = true
-                                            translateText(sourceText, selectedLang) { result ->
-                                                translatedText = result
-                                                isTranslating = false
-                                            }
-                                        }
-                                    },
-                                    colors = colors,
-                                    modifier = Modifier.fillMaxWidth().weight(1f)
-                                )
-                                if (translatedText.isNotEmpty()) {
-                                    KeyButton(
-                                        text = "Clear",
-                                        onClick = {
-                                            triggerFeedback()
-                                            sourceText = ""
-                                            translatedText = ""
-                                        },
-                                        colors = colors,
-                                        modifier = Modifier.fillMaxWidth().weight(0.8f)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // Handled at the top of the main Column
                 }
                 KeyboardSubPanel.Gif -> {
                     val gifImageLoader = remember {
@@ -1449,10 +1902,10 @@ fun KeyboardLayout(
                         modifier = Modifier.fillMaxSize().padding(8.dp)
                     ) {
                         val gifs = listOf(
-                            "https://media.tenor.com/2RoZ9Qd347cAAAAM/cat-nodding.gif",
-                            "https://media.tenor.com/images/4688b17173e6da8f0290547071e72e36/tenor.gif",
-                            "https://media.tenor.com/images/a5fc8a9ea3fcdbbef05f6354fcecc23d/tenor.gif",
-                            "https://media.tenor.com/images/7a730026eef57e3f608b471ba95e0c8b/tenor.gif"
+                            "https://media.tenor.com/tBbygZ4paoIAAAAM/cat-kitty.gif",
+                            "https://media.tenor.com/A6g018_2gGgAAAAM/puppy-dog.gif",
+                            "https://media.tenor.com/gKInY7Abe_8AAAAM/cute-baby-panda.gif",
+                            "https://media.tenor.com/Z4O8g_kP7Y0AAAAM/kawaii-peach-cat.gif"
                         )
                         androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                             columns = GridCells.Adaptive(80.dp),
@@ -1470,6 +1923,11 @@ fun KeyboardLayout(
                                         .clickable {
                                             triggerFeedback()
                                             onKeyClick(gifUrl + " ")
+                                            val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                            if (clipboardManager != null) {
+                                                val clip = android.content.ClipData.newPlainText("GIF Link", gifUrl)
+                                                clipboardManager.setPrimaryClip(clip)
+                                            }
                                         }
                                 ) {
                                     coil.compose.AsyncImage(

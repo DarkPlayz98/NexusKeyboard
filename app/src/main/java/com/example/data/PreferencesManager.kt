@@ -32,7 +32,7 @@ class PreferencesManager(context: Context) {
         set(value) = prefs.edit().putString(KEY_ONE_HANDED, value).apply()
 
     var selectedTheme: String
-        get() = prefs.getString(KEY_THEME, "Midnight OLED") ?: "Midnight OLED"
+        get() = prefs.getString(KEY_THEME, "Pastel Pink") ?: "Pastel Pink"
         set(value) = prefs.edit().putString(KEY_THEME, value).apply()
 
     var isHapticEnabled: Boolean
